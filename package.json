@@ -1,13 +1,9 @@
 {
   "private": true,
   "name": "only-flairs",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "BSD-3-Clause",
   "type": "module",
-  "scripts": {
-    "test": "npm run test:unit",
-    "test:unit": "vitest --run"
-  },
   "dependencies": {
     "@devvit/public-api": "0.10.15"
   },
