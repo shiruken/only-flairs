@@ -44,11 +44,17 @@ async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
   if (settings.is_enabled) {
     await storePostSettings(settings.post_id, settings, context);
     console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
-    context.ui.showToast("Commenting restricted to flaired users");
+    context.ui.showToast({
+      text: "Commenting restricted to flaired users",
+      appearance: "success",
+    });
   } else {
     await clearPostSettings(settings.post_id, context);
     console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
-    context.ui.showToast("Commenting permitted from all users");
+    context.ui.showToast({
+      text: "Commenting permitted from all users",
+      appearance: "success",
+    });
   }
 }
 
