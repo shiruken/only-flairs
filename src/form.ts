@@ -13,14 +13,14 @@ export const form = Devvit.createForm((data) => {
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
         type: "boolean",
-        defaultValue: data.is_enabled,
+        defaultValue: data.settings ? data.settings.is_enabled : false,
       },
       {
-        name: 'top_level_only',
-        label: 'Only restrict top-level comments',
-        helpText: 'Allow comment replies from any user regardless of flair',
-        type: 'boolean',
-        defaultValue: data.top_level_only,
+        name: "top_level_only",
+        label: "Only restrict top-level comments",
+        helpText: "Allow comment replies from any user regardless of flair",
+        type: "boolean",
+        defaultValue: data.settings ? data.settings.top_level_only : false,
       },
       {
         name: "post_id",
@@ -32,7 +32,7 @@ export const form = Devvit.createForm((data) => {
     ],
   };
 }, formHandler);
-  
+
 async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
   const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();

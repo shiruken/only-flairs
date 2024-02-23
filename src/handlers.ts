@@ -4,16 +4,11 @@ import { form } from "./form.js";
 import { getPostSettings } from "./storage.js";
 
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Devvit.Context): Promise<void> {
-  let settings = await getPostSettings(event.targetId, context);
-  if (!settings) {
-    // Default Values
-    settings = {
-      post_id: event.targetId,
-      is_enabled: false,
-      top_level_only: false,
-    };
-  }
-  context.ui.showForm(form, settings);
+  const data = {
+    post_id: event.targetId,
+    settings: await getPostSettings(event.targetId, context),
+  };
+  context.ui.showForm(form, data);
 }
 
 export async function checkComment(event: CommentSubmit, context: TriggerContext): Promise<void> {
