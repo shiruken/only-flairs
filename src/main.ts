@@ -1,4 +1,6 @@
 import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
+import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
+import { PostSettings } from "./types.js";
 
 Devvit.configure({
   redditAPI: true,
@@ -36,21 +38,15 @@ const form = Devvit.createForm((data) => {
   };
 }, formHandler);
 
-type RestrictedPostSettings = {
-  post_id: string;
-  is_enabled: boolean;
-  top_level_only: boolean;
-};
-
 async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
-  const settings = event.values as RestrictedPostSettings;
+  const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();
   if (settings.is_enabled) {
-    context.redis.set(settings.post_id, JSON.stringify(settings));
+    await storePostSettings(settings.post_id, settings, context);
     console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
     context.ui.showToast("Commenting restricted to flaired users");
   } else {
-    context.redis.del(settings.post_id);
+    await clearPostSettings(settings.post_id, context);
     console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
     context.ui.showToast("Commenting permitted from all users");
   }
@@ -61,7 +57,7 @@ Devvit.addMenuItem({
   forUserType: "moderator",
   label: "Restrict to Flaired Users",
   description: "Restrict commenting on this post to only flaired users",
-  onPress: (event, context) => {
+  onPress: async (event, context) => {
     const data = {
       post_id: event.targetId,
     };
@@ -82,11 +78,10 @@ Devvit.addTrigger({
       throw new Error("Author object missing from event data");
     }
 
-    const value = await context.redis.get(comment.postId);
-    if (!value) {
+    const settings = await getPostSettings(comment.postId, context);
+    if (!settings) {
       return;
     }
-    const settings: RestrictedPostSettings = JSON.parse(value);
 
     // If enabled, exclude comment replies
     if (settings.top_level_only && comment.parentId != comment.postId) {
