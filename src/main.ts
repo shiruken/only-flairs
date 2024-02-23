@@ -19,6 +19,13 @@ const form = Devvit.createForm((data) => {
         defaultValue: true,
       },
       {
+        name: 'top_level_only',
+        label: 'Only restrict top-level comments',
+        helpText: 'Allow comment replies from any user regardless of flair',
+        type: 'boolean',
+        defaultValue: false
+      },
+      {
         name: "post_id",
         label: "Post ID",
         type: "string",
@@ -32,6 +39,7 @@ const form = Devvit.createForm((data) => {
 type RestrictedPostSettings = {
   post_id: string;
   is_enabled: boolean;
+  top_level_only: boolean;
 };
 
 async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
@@ -79,6 +87,11 @@ Devvit.addTrigger({
       return;
     }
     const settings: RestrictedPostSettings = JSON.parse(value);
+
+    // If enabled, exclude comment replies
+    if (settings.top_level_only && comment.parentId != comment.postId) {
+      return;
+    }
 
     if (author.flair.text == "") {
       const commentAPI = await context.reddit.getCommentById(comment.id);
