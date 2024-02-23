@@ -6,7 +6,7 @@ export async function storePostSettings(id: string, settings: PostSettings, cont
   await context.redis.set(id, value);
 }
 
-export async function getPostSettings(id: string, context: TriggerContext): Promise<PostSettings | undefined> {
+export async function getPostSettings(id: string, context: Devvit.Context | TriggerContext): Promise<PostSettings | undefined> {
   const settings = await context.redis.get(id);
   if (!settings) {
     return undefined;

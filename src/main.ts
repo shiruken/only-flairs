@@ -18,14 +18,14 @@ const form = Devvit.createForm((data) => {
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
         type: "boolean",
-        defaultValue: true,
+        defaultValue: data.is_enabled,
       },
       {
         name: 'top_level_only',
         label: 'Only restrict top-level comments',
         helpText: 'Allow comment replies from any user regardless of flair',
         type: 'boolean',
-        defaultValue: false
+        defaultValue: data.top_level_only,
       },
       {
         name: "post_id",
@@ -58,10 +58,16 @@ Devvit.addMenuItem({
   label: "Restrict to Flaired Users",
   description: "Restrict commenting on this post to only flaired users",
   onPress: async (event, context) => {
-    const data = {
-      post_id: event.targetId,
-    };
-    context.ui.showForm(form, data);
+    let settings = await getPostSettings(event.targetId, context);
+    if (!settings) {
+      // Default Values
+      settings = {
+        post_id: event.targetId,
+        is_enabled: false,
+        top_level_only: false,
+      };
+    }
+    context.ui.showForm(form, settings);
   },
 });
 
