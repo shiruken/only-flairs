@@ -1,6 +1,6 @@
 import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
 import { PostSettings } from "./types.js";
-import { clearPostSettings, storePostSettings } from "./storage.js";
+import { clearPostSettings, isPostSettingsEdit, storePostSettings } from "./storage.js";
 
 export const form = Devvit.createForm((data) => {
   return {
@@ -37,8 +37,13 @@ async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
   const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();
   if (settings.is_enabled) {
+    const isEdit = await isPostSettingsEdit(settings.post_id, context);
+    if (isEdit) {
+      console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
+    } else {
+      console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
+    }
     await storePostSettings(settings.post_id, settings, context);
-    console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
     context.ui.showToast({
       text: "Commenting restricted to flaired users",
       appearance: "success",

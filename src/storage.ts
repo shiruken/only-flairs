@@ -17,3 +17,12 @@ export async function getPostSettings(post_id: string, context: Devvit.Context |
 export async function clearPostSettings(post_id: string, context: Devvit.Context): Promise<void> {
   await context.redis.del(post_id);
 }
+
+export async function isPostSettingsEdit(post_id: string, context: Devvit.Context): Promise<boolean> {
+  const settings = await context.redis.get(post_id);
+  if (!settings) {
+    return false;
+  } else {
+    return true;
+  }
+}
