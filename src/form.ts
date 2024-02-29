@@ -1,6 +1,6 @@
 import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
 import { PostSettings } from "./interfaces.js";
-import { clearPostSettings, isPostSettingsEdit, storePostSettings } from "./storage.js";
+import { clearPostSettings, keyExists, storePostSettings } from "./storage.js";
 
 export const form = Devvit.createForm((data) => {
   return {
@@ -59,7 +59,7 @@ async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
   const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();
   if (settings.is_enabled) {
-    const isEdit = await isPostSettingsEdit(settings.post_id, context);
+    const isEdit = await keyExists(settings.post_id, context);
     if (isEdit) {
       console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
     } else {

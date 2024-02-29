@@ -25,11 +25,7 @@ export async function clearPostSettings(post_id: string, context: Devvit.Context
     .catch((e) => console.error(`Error deleting ${post_id} in Redis`, e));
 }
 
-export async function isPostSettingsEdit(post_id: string, context: Devvit.Context): Promise<boolean> {
-  const settings = await context.redis.get(post_id);
-  if (!settings) {
-    return false;
-  } else {
-    return true;
-  }
+export async function keyExists(post_id: string, context: Devvit.Context): Promise<boolean> {
+  const type = await context.redis.type(post_id);
+  return type === "string";
 }
