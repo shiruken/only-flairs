@@ -1,5 +1,5 @@
 import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
-import { PostSettings } from "./types.js";
+import { PostSettings } from "./interfaces.js";
 import { clearPostSettings, isPostSettingsEdit, storePostSettings } from "./storage.js";
 
 export const form = Devvit.createForm((data) => {

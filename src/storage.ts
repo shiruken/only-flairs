@@ -1,5 +1,5 @@
 import { Devvit, TriggerContext } from "@devvit/public-api";
-import { PostSettings } from "./types.js";
+import { PostSettings } from "./interfaces.js";
 
 export async function storePostSettings(settings: PostSettings, context: Devvit.Context): Promise<void> {
   const value = JSON.stringify(settings);
