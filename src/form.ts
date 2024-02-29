@@ -1,4 +1,4 @@
-import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
+import { Context, Devvit, FormOnSubmitEvent } from "@devvit/public-api";
 import { PostSettings } from "./interfaces.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
 
@@ -69,9 +69,9 @@ export const form = Devvit.createForm((data) => {
 /**
  * Process post restriction form after user submission
  * @param event A FormOnSubmitEvent object
- * @param context A Devvit.Context object
+ * @param context A Context object
  */
-async function processForm(event: FormOnSubmitEvent, context: Devvit.Context): Promise<void> {
+async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
   event.values.expiration = Number(event.values.expiration[0]); // Convert from string[]
   const settings = event.values as PostSettings;
 

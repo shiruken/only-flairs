@@ -1,4 +1,4 @@
-import { Devvit, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
+import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { getPostSettings } from "./storage.js";
@@ -6,9 +6,9 @@ import { getPostSettings } from "./storage.js";
 /**
  * Shows form to adjust post restriction settings
  * @param event A MenuItemOnPressEvent object
- * @param context A Devvit.Context object
+ * @param context A Context object
  */
-export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Devvit.Context): Promise<void> {
+export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   const data = {
     post_id: event.targetId,
     settings: await getPostSettings(event.targetId, context),
