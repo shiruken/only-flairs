@@ -15,7 +15,11 @@ https://developers.reddit.com/apps/only-flairs
 
 ## Screenshots
 
-![Post Restriction Settings](https://github.com/shiruken/only-flairs/assets/867617/eff910b3-3006-4b81-881d-51d873158622)
+### Post Action
+
+![Mod Menu Action](https://github.com/shiruken/only-flairs/assets/867617/647c110b-ed45-4009-a322-60ac793d4747) ![Post Restriction Settings](https://github.com/shiruken/only-flairs/assets/867617/eff910b3-3006-4b81-881d-51d873158622)
+
+### Removed Comment
 
 ![Removed Comment](https://github.com/shiruken/only-flairs/assets/867617/c9b91acb-05a9-4db7-8f08-c9a0e5779577)
 
