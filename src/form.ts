@@ -23,7 +23,28 @@ export const form = Devvit.createForm((data) => {
         defaultValue: data.settings ? data.settings.top_level_only : false,
       },
       {
-        name: "post_id",
+        name: "expiration",
+        label: "Expiration",
+        helpText: "Automatically disable after selected duration",
+        type: "select",
+        multiSelect: false,
+        options: [
+          { label: "1 hour", value: "3600" },
+          { label: "2 hours", value: "7200" },
+          { label: "4 hours", value: "14400" },
+          { label: "6 hours", value: "21600" },
+          { label: "12 hours",value: "43200" },
+          { label: "1 day", value: "86400" },
+          { label: "2 days", value: "172800" },
+          { label: "3 days", value: "259200" },
+          { label: "7 days", value: "604800" },
+          { label: "14 days", value: "1209600" },
+          { label: "30 days", value: "2592000" },
+        ],
+        defaultValue: data.settings? [ `${data.settings.expiration}` ] : [ "2592000" ], // 30 days
+      },
+      {
+        name: "post_id", // Necessary to pass-through post information
         label: "Post ID",
         type: "string",
         defaultValue: data.post_id,
@@ -34,6 +55,7 @@ export const form = Devvit.createForm((data) => {
 }, formHandler);
 
 async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
+  event.values.expiration = Number(event.values.expiration[0]); // Convert from string[]
   const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();
   if (settings.is_enabled) {
@@ -43,7 +65,7 @@ async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
     } else {
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
     }
-    await storePostSettings(settings.post_id, settings, context);
+    await storePostSettings(settings, context);
     context.ui.showToast({
       text: "Commenting restricted to flaired users",
       appearance: "success",
