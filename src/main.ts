@@ -6,6 +6,7 @@ Devvit.configure({
   redis: true,
 });
 
+// Moderator menu item to toggle flaired user only mode
 Devvit.addMenuItem({
   location: "post",
   forUserType: "moderator",
@@ -14,6 +15,7 @@ Devvit.addMenuItem({
   onPress: showPostRestrictForm,
 });
 
+// Check all incoming comments
 Devvit.addTrigger({
   event: "CommentSubmit",
   onEvent: checkComment,

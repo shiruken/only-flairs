@@ -3,6 +3,11 @@ import { CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { getPostSettings } from "./storage.js";
 
+/**
+ * Shows form to adjust post restriction settings
+ * @param event A MenuItemOnPressEvent object
+ * @param context A Devvit.Context object
+ */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Devvit.Context): Promise<void> {
   const data = {
     post_id: event.targetId,
@@ -11,6 +16,11 @@ export async function showPostRestrictForm(event: MenuItemOnPressEvent, context:
   context.ui.showForm(form, data);
 }
 
+/**
+ * Checks comment author flair and removes when post is restricted
+ * @param event A CommentSubmit object
+ * @param context A TriggerContext object
+ */
 export async function checkComment(event: CommentSubmit, context: TriggerContext): Promise<void> {
   const comment = event.comment;
   if (!comment) {

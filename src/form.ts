@@ -2,6 +2,9 @@ import { Devvit, FormOnSubmitEvent } from "@devvit/public-api";
 import { PostSettings } from "./interfaces.js";
 import { clearPostSettings, keyExists, storePostSettings } from "./storage.js";
 
+/**
+ * Post restriction settings form
+ */
 export const form = Devvit.createForm((data) => {
   return {
     title: "Restrict to Flaired Users",
@@ -52,9 +55,14 @@ export const form = Devvit.createForm((data) => {
       },
     ],
   };
-}, formHandler);
+}, processForm);
 
-async function formHandler(event: FormOnSubmitEvent, context: Devvit.Context) {
+/**
+ * Process post restriction form after user submission
+ * @param event A FormOnSubmitEvent object
+ * @param context A Devvit.Context object
+ */
+async function processForm(event: FormOnSubmitEvent, context: Devvit.Context): Promise<void> {
   event.values.expiration = Number(event.values.expiration[0]); // Convert from string[]
   const settings = event.values as PostSettings;
   const mod = await context.reddit.getCurrentUser();
