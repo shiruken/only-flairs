@@ -40,14 +40,3 @@ export async function clearPostSettings(post_id: string, context: Devvit.Context
     .del(post_id)
     .catch((e) => console.error(`Error deleting ${post_id} in Redis`, e));
 }
-
-/**
- * Checks whether entry for `post_id` exists in Redis.
- * @param post_id A Reddit post ID (including `t3_` prefix)
- * @param context A Devvit.Context object
- * @returns A Promise that resolves to a boolean indicating whether `post_id` exists in Redis
- */
-export async function keyExists(post_id: string, context: Devvit.Context): Promise<boolean> {
-  const type = await context.redis.type(post_id);
-  return type === "string";
-}
