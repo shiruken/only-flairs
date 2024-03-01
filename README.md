@@ -1,6 +1,6 @@
 # Only Flairs
 
-Easily restrict commenting on individual posts to only users flaired in your subreddit.
+Easily restrict commenting on individual posts to only users [flaired](https://support.reddithelp.com/hc/en-us/articles/15484503095060-User-Flair) in your subreddit.
 
 https://developers.reddit.com/apps/only-flairs
 
