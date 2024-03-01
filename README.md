@@ -27,3 +27,4 @@ https://developers.reddit.com/apps/only-flairs
 
 * [Source Code](https://github.com/shiruken/only-flairs)
 * [Changelog](https://github.com/shiruken/only-flairs/releases)
+* [Reddit: User Flair](https://support.reddithelp.com/hc/en-us/articles/15484503095060-User-Flair)
