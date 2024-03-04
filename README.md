@@ -6,12 +6,18 @@ https://developers.reddit.com/apps/only-flairs
 
 ## Features
 
-* No setup requiring **zero** knowledge about AutoModerator or coding
+* Minimal setup requiring **zero** knowledge about AutoModerator or coding
 * Moderator enabled on a post-by-post basis
 * Automatically removes all comments from unflaired users
   * Optionally allow replies to top-level comments
 * Restrictions expire after user-selected duration
 * Notifications via Modmail
+
+## Configuration
+
+![Screenshot of App Configuration](https://github.com/shiruken/only-flairs/assets/867617/2211098e-e41c-4b71-ad50-ece77d082e40)
+
+* **Removal Reason (Optional):** Specify the removal reason to use when actioning comments. Text must _exactly_ match the title of the removal reason defined in the subreddit settings. If not set, no removal reason will be applied.
 
 ## Screenshots
 
