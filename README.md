@@ -24,6 +24,10 @@ https://developers.reddit.com/apps/only-flairs
 
 ![Removed Comment](https://github.com/shiruken/only-flairs/assets/867617/fc290373-2176-4ef4-bd7a-5d2aaa20b654)
 
+### Modmail Notifications
+
+![Modmail Conversation](https://github.com/shiruken/only-flairs/assets/867617/fc32bbfe-bd20-44bd-9983-249ecb7dbf26)
+
 ## Links
 
 * [Source Code](https://github.com/shiruken/only-flairs)
