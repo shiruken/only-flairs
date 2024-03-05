@@ -1,4 +1,5 @@
 import { Context, Devvit, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
+import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
 
@@ -22,22 +23,23 @@ const DURATIONS: Record<number, string> = {
  */
 export const form = Devvit.createForm((data) => {
   
-  // Generate options for `removal_reason` setting
-  const removal_reason_options = [
+  // Generate options for `removal_reason` field
+  const removal_reason_options: FieldConfig_Selection_Item[] = [
     { label: "None", value: "" }
   ];
-  for (let reason of data.removal_reasons as RemovalReason[]) {
+  for (const reason of data.removal_reasons as RemovalReason[]) {
     removal_reason_options.push({
       label: reason.title,
       value: JSON.stringify(reason),
     });
   }
 
-  // Generate options for `expiration` setting
+  // Generate options for `expiration` field
   const settings: PostSettings | undefined = data.settings;
-  const expiration_options = Object.entries(DURATIONS).map(([key, value]) => {
-    return { label: value, value: key };
-  });
+  const expiration_options: FieldConfig_Selection_Item[] = Object.entries(DURATIONS)
+    .map(([key, value]) => {
+      return { label: value, value: key };
+    });
   const expiration_default = Object.keys(DURATIONS).slice(-1);
 
   return {
@@ -97,7 +99,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
 
   // Convert `select` fields from string[] type
   if (event.values.removal_reason[0]) {
-    event.values.removal_reason = JSON.parse(event.values.removal_reason[0]);
+    event.values.removal_reason = JSON.parse(event.values.removal_reason[0]) as RemovalReason;
   } else {
     event.values.removal_reason = undefined;
   }

@@ -1,7 +1,7 @@
 import { RemovalReason } from "@devvit/public-api";
 
 /**
- * Settings for restricting commenting to flaired users on a post
+ * Settings for configuring flaired user only mode on a post
  */
 export type PostSettings = {
   /** Reddit post ID (including `t3_` prefix) */

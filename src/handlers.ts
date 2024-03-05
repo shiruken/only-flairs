@@ -1,4 +1,4 @@
-import { Context, MenuItemOnPressEvent, RemovalReason, TriggerContext } from "@devvit/public-api";
+import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { getPostSettings } from "./storage.js";
@@ -9,10 +9,13 @@ import { getPostSettings } from "./storage.js";
  * @param context A Context object
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
+  const subreddit = await context.reddit.getCurrentSubreddit();
+  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
+  const settings = await getPostSettings(event.targetId, context); // Current settings
   const data = {
     post_id: event.targetId,
-    removal_reasons: await getRemovalReasons(context),
-    settings: await getPostSettings(event.targetId, context), // Current settings
+    removal_reasons: removal_reasons,
+    settings: settings,
   };
   context.ui.showForm(form, data);
 }
@@ -57,15 +60,4 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
       })
       .catch((e) => console.error(`Error adding removal note to ${comment.id} by u/${author.name}`, e));
   }
-}
-
-/**
- * Get subreddit removal reasons
- * @param context A Context object
- * @returns A Promise that resolves to a list of {@link RemovalReason} objects
-*/
-async function getRemovalReasons(context: Context): Promise<RemovalReason[]> {
-  const subreddit = await context.reddit.getCurrentSubreddit();
-  const reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
-  return reasons;
 }
