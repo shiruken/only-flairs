@@ -16,4 +16,8 @@ export type PostSettings = {
   removal_reason?: RemovalReason;
   /** ModMail conversation ID for use with follow-up messages */
   conversation_id?: string;
+  /** Text to use in sticky comment */
+  sticky_comment_text: string;
+  /** Sticky comment ID */
+  sticky_comment_id?: string;
 };

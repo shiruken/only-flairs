@@ -32,8 +32,16 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   const author = event.author;
-  if (!author || !author.flair) {
+  if (!author) {
     throw new Error("Author object missing from event data");
+  }
+
+  if (author.name == "only-flairs") {
+    return; // Ignore comments from app
+  }
+
+  if (!author.flair) {
+    throw new Error("Author flair object missing from event data");
   }
 
   const settings = await getPostSettings(comment.postId, context);

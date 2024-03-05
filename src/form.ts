@@ -71,6 +71,13 @@ export const form = Devvit.createForm((data) => {
         defaultValue: (settings && settings.removal_reason) ? [ JSON.stringify(settings.removal_reason) ] : [ "" ],
       },
       {
+        name: "sticky_comment_text",
+        label: "Sticky Comment",
+        helpText: "Post sticky comment with above text. Leave empty to disable.",
+        type: "paragraph",
+        defaultValue: settings ? settings.sticky_comment_text : "",
+      },
+      {
         name: "expiration",
         label: "Expiration",
         helpText: "Automatically disable after selected duration",
@@ -116,7 +123,10 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
 
   if (settings.is_enabled) {
     if (settings_old) { // Edit
-      settings.conversation_id = settings_old.conversation_id; // Propagate to new settings
+
+      // Propagate to new settings
+      settings.conversation_id = settings_old.conversation_id;
+      settings.sticky_comment_id = settings_old.sticky_comment_id;
 
       if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
         console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
@@ -129,8 +139,34 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `**Updated Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
-                `* **Expiration:** ${DURATIONS[settings.expiration]}`,
+                `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+                `* **Sticky Comment:** ${settings.sticky_comment_text ? settings.sticky_comment_text : "None"}`,
         });
+
+        // Sticky Comment
+        if (settings.sticky_comment_id) {
+          if (settings.sticky_comment_text) {
+            if (settings.sticky_comment_text != settings_old.sticky_comment_text) {
+              const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+              await comment.edit({
+                text: settings.sticky_comment_text,
+              });
+            }
+          } else {
+            const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+            await comment.delete();
+            settings.sticky_comment_id = undefined;
+          }
+        } else {
+          if (settings.sticky_comment_text) {
+            const comment = await context.reddit.submitComment({
+              id: settings.post_id,
+              text: settings.sticky_comment_text,
+            });
+            await comment.distinguish(true); // Distinguish + Sticky
+            settings.sticky_comment_id = comment.id;
+          }
+        }
 
         await storePostSettings(settings, context);
         context.ui.showToast({
@@ -157,9 +193,20 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `**Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
-                `* **Expiration:** ${DURATIONS[settings.expiration]}`,
+                `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+                `* **Sticky Comment:** ${settings.sticky_comment_text ? settings.sticky_comment_text : "None"}`,
         });
       settings.conversation_id = conversation.id; // Store for sending follow-up messages
+
+      // Sticky Comment
+      if (settings.sticky_comment_text) {
+        const comment = await context.reddit.submitComment({
+          id: settings.post_id,
+          text: settings.sticky_comment_text,
+        });
+        await comment.distinguish(true); // Distinguish + Sticky
+        settings.sticky_comment_id = comment.id;
+      }
 
       await storePostSettings(settings, context);
       context.ui.showToast({
@@ -177,6 +224,12 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
         body: `u/${mod.username} has disabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).`,
       });
+
+      // Delete Comment
+      if (settings_old.sticky_comment_id) {
+        const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
+        await comment.delete();
+      }
 
       await clearPostSettings(settings.post_id, context);
       context.ui.showToast({
