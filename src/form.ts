@@ -1,5 +1,5 @@
 import { Context, Devvit, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
-import { PostSettings } from "./interfaces.js";
+import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
 
 // Define expiration durations (in seconds) and associated labels

@@ -1,5 +1,5 @@
 import { Context, TriggerContext } from "@devvit/public-api";
-import { PostSettings } from "./interfaces.js";
+import { PostSettings } from "./types.js";
 
 /**
  * Write {@link PostSettings} object for a post in Redis
