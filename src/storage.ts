@@ -1,4 +1,4 @@
-import { Context, RemovalReason, TriggerContext } from "@devvit/public-api";
+import { Context, TriggerContext } from "@devvit/public-api";
 import { PostSettings } from "./interfaces.js";
 
 /**
@@ -39,33 +39,4 @@ export async function clearPostSettings(post_id: string, context: Context): Prom
   await context.redis
     .del(post_id)
     .catch((e) => console.error(`Error deleting ${post_id} in Redis`, e));
-}
-
-/**
- * Write {@link RemovalReason} object in Redis
- * Expires after 24 hours
- * @param settings A {@link RemovalReason} object
- * @param context A TriggerContext object
- */
-export async function storeRemovalReason(reason: RemovalReason, context: TriggerContext): Promise<void> {
-  const value = JSON.stringify(reason);
-  await context.redis
-    .set("removal_reason", value)
-    .catch((e) => console.error("Error writing removal reason to Redis", e));
-  await context.redis
-    .expire("removal_reason", 60*60*24)
-    .catch((e) => console.error("Error setting expiration for removal reason in Redis", e));
-}
-
-/**
- * Read {@link RemovalReason} object from Redis
- * @param context A TriggerContext object
- * @returns A Promise that resolves to a {@link RemovalReason}, or undefined if it doesn't exist
- */
-export async function getRemovalReason(context: TriggerContext): Promise<RemovalReason | undefined> {
-  const reason = await context.redis.get("removal_reason");
-  if (!reason) {
-    return undefined;
-  }
-  return JSON.parse(reason) as RemovalReason;
 }

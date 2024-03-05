@@ -1,4 +1,4 @@
-import { Context, Devvit, FormOnSubmitEvent } from "@devvit/public-api";
+import { Context, Devvit, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
 import { PostSettings } from "./interfaces.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
 
@@ -21,6 +21,19 @@ const DURATIONS: Record<number, string> = {
  * Post restriction settings form
  */
 export const form = Devvit.createForm((data) => {
+  
+  // Generate options for `removal_reason` setting
+  const removal_reason_options = [
+    { label: "None", value: "" }
+  ];
+  for (let reason of data.removal_reasons as RemovalReason[]) {
+    removal_reason_options.push({
+      label: reason.title,
+      value: JSON.stringify(reason),
+    });
+  }
+
+  // Generate options for `expiration` setting
   const settings: PostSettings | undefined = data.settings;
   const expiration_options = Object.entries(DURATIONS).map(([key, value]) => {
     return { label: value, value: key };
@@ -47,13 +60,22 @@ export const form = Devvit.createForm((data) => {
         defaultValue: settings ? settings.top_level_only : false,
       },
       {
+        name: "removal_reason",
+        label: "Removal Reason",
+        helpText: "Subreddit removal reason to use on actioned comments",
+        type: "select",
+        multiSelect: false,
+        options: removal_reason_options,
+        defaultValue: (settings && settings.removal_reason) ? [ JSON.stringify(settings.removal_reason) ] : [ "" ],
+      },
+      {
         name: "expiration",
         label: "Expiration",
         helpText: "Automatically disable after selected duration",
         type: "select",
         multiSelect: false,
         options: expiration_options,
-        defaultValue: settings? [ settings.expiration.toString() ] : [ expiration_default.toString() ],
+        defaultValue: settings ? [ settings.expiration.toString() ] : [ expiration_default.toString() ],
       },
       {
         name: "post_id", // Necessary to pass-through post information
@@ -72,7 +94,15 @@ export const form = Devvit.createForm((data) => {
  * @param context A Context object
  */
 async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
-  event.values.expiration = Number(event.values.expiration[0]); // Convert from string[]
+
+  // Convert `select` fields from string[] type
+  if (event.values.removal_reason[0]) {
+    event.values.removal_reason = JSON.parse(event.values.removal_reason[0]);
+  } else {
+    event.values.removal_reason = undefined;
+  }
+  event.values.expiration = Number(event.values.expiration[0]);
+
   const settings = event.values as PostSettings;
 
   // Load current post settings
@@ -96,6 +126,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Updated Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
+                `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}`,
         });
 
@@ -123,6 +154,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
+                `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}`,
         });
       settings.conversation_id = conversation.id; // Store for sending follow-up messages

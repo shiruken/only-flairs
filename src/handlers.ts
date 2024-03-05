@@ -1,7 +1,7 @@
 import { Context, MenuItemOnPressEvent, RemovalReason, TriggerContext } from "@devvit/public-api";
 import { CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
-import { getPostSettings, getRemovalReason, storeRemovalReason } from "./storage.js";
+import { getPostSettings } from "./storage.js";
 
 /**
  * Shows form to adjust post restriction settings
@@ -11,7 +11,8 @@ import { getPostSettings, getRemovalReason, storeRemovalReason } from "./storage
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   const data = {
     post_id: event.targetId,
-    settings: await getPostSettings(event.targetId, context),
+    removal_reasons: await getRemovalReasons(context),
+    settings: await getPostSettings(event.targetId, context), // Current settings
   };
   context.ui.showForm(form, data);
 }
@@ -49,10 +50,9 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
       .then(() => console.log(`Removed ${comment.id} by u/${author.name}`))
       .catch((e) => console.error(`Error removing ${comment.id} by u/${author.name}`, e));
 
-    const reasonId = await lookupRemovalReasonID(context);
     await commentAPI
       .addRemovalNote({
-        reasonId: reasonId,
+        reasonId: settings.removal_reason ? settings.removal_reason.id : "",
         modNote: `Commenting restricted to flaired users on ${comment.postId}`,
       })
       .catch((e) => console.error(`Error adding removal note to ${comment.id} by u/${author.name}`, e));
@@ -60,30 +60,12 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 }
 
 /**
- * Lookup subreddit removal reason ID for removal reason specified in app configuration
- * Caches the removal reason in Redis
- * @param context A TriggerContext object
- * @returns A Promise that resolves to the removal reason ID, or an empty string if it isn't defined or doesn't exist
+ * Get subreddit removal reasons
+ * @param context A Context object
+ * @returns A Promise that resolves to a list of {@link RemovalReason} objects
 */
-async function lookupRemovalReasonID(context: TriggerContext): Promise<string> {
-  const removal_reason = await context.settings.get<string>("removal_reason");
-  if (!removal_reason) {
-    return "";
-  }
-
-  // Check for cached removal reason and update if necessary
-  const reason = await getRemovalReason(context);
-  if (!reason || reason.title != removal_reason) {
-    const subreddit = await context.reddit.getCurrentSubreddit();
-    const reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
-    for (let reason of reasons) {
-      if (reason.title === removal_reason) {
-        await storeRemovalReason(reason, context);
-        return reason.id;
-      }
-    }
-    return "";
-  } else {
-    return reason.id;
-  }
+async function getRemovalReasons(context: Context): Promise<RemovalReason[]> {
+  const subreddit = await context.reddit.getCurrentSubreddit();
+  const reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
+  return reasons;
 }
