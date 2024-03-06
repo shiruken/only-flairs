@@ -73,9 +73,9 @@ export const form = Devvit.createForm((data) => {
       {
         name: "sticky_comment_text",
         label: "Sticky Comment",
-        helpText: "Post sticky comment with above text. Leave empty to disable.",
+        helpText: "Post sticky comment with above text. Leave empty to disable. Set default value in app settings.",
         type: "paragraph",
-        defaultValue: settings ? settings.sticky_comment_text : "",
+        defaultValue: settings ? settings.sticky_comment_text : data.sticky_comment_text_default,
       },
       {
         name: "expiration",
@@ -140,7 +140,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                `* **Sticky Comment:** ${settings.sticky_comment_text ? settings.sticky_comment_text : "None"}`,
+                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
         });
 
         // Sticky Comment
@@ -194,7 +194,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                `* **Sticky Comment:** ${settings.sticky_comment_text ? settings.sticky_comment_text : "None"}`,
+                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
         });
       settings.conversation_id = conversation.id; // Store for sending follow-up messages
 
@@ -238,9 +238,18 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
       });  
     } else { // Never Enabled
       context.ui.showToast({
-        text: "Commenting permitted from all users. Did you forget to enable Flaired Only mode?",
+        text: "Commenting restriction not applied. Did you forget to enable Flaired Only mode?",
         appearance: "neutral",
       });
     }
   }
+}
+
+/**
+ * Format string as quoted text in Reddit Markdown
+ * @param text A string to format as quoted text
+ * @returns A string containing quoted text
+ */
+function quoteText(text: string): string {
+  return "\n >" + text.replace(/\n/g, "\n> ");
 }

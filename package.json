@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "only-flairs",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "BSD-3-Clause",
   "type": "module",
   "dependencies": {

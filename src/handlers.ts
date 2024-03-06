@@ -12,10 +12,12 @@ export async function showPostRestrictForm(event: MenuItemOnPressEvent, context:
   const subreddit = await context.reddit.getCurrentSubreddit();
   const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
   const settings = await getPostSettings(event.targetId, context); // Current settings
+  const sticky_comment_text_default = await context.settings.get<string>("sticky_comment_text_default");
   const data = {
     post_id: event.targetId,
     removal_reasons: removal_reasons,
     settings: settings,
+    sticky_comment_text_default: sticky_comment_text_default,
   };
   context.ui.showForm(form, data);
 }

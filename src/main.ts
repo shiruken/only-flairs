@@ -1,10 +1,13 @@
 import { Devvit } from "@devvit/public-api";
+import { settings } from "./settings.js";
 import { checkComment, showPostRestrictForm } from "./handlers.js";
 
 Devvit.configure({
   redditAPI: true,
   redis: true,
 });
+
+Devvit.addSettings(settings);
 
 // Moderator menu item to toggle flaired user only mode
 Devvit.addMenuItem({
