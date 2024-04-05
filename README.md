@@ -19,13 +19,14 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 ### Installation Settings
 
-![Screenshot of Installation Settings](https://github.com/shiruken/only-flairs/assets/867617/f0f385f1-71cb-4f98-96e2-567f42bfa0cf)
+![Screenshot of Installation Settings](https://github.com/shiruken/only-flairs/assets/867617/e01adb76-f655-4d91-ac26-69b8cd29f3a6)
 
 * **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Can be modified when configuring the settings on individual posts. Supports Markdown. Leave empty to disable.
 
 ### Post Action
 
-![Mod Menu Action](https://github.com/shiruken/only-flairs/assets/867617/e8812150-5be4-4384-876c-4c2957e2b3c5) ![Post Restriction Settings](https://github.com/shiruken/only-flairs/assets/867617/233ba303-9ab6-4e82-a826-eea437ef94bc)
+![Mod Menu Action](https://github.com/shiruken/only-flairs/assets/867617/e8812150-5be4-4384-876c-4c2957e2b3c5) ![Post Restriction Settings](https://github.com/shiruken/only-flairs/assets/867617/1aa704f4-f802-4ea0-9d6a-eab91c3f172c)
+
 
 * Sticky comment text defaults to the value defined in the app installation settings.
 
