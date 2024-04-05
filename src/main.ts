@@ -1,6 +1,6 @@
 import { Devvit } from "@devvit/public-api";
 import { settings } from "./settings.js";
-import { checkComment, showPostRestrictForm } from "./handlers.js";
+import { checkComment, onAppChanged, onModAction, showPostRestrictForm } from "./handlers.js";
 
 Devvit.configure({
   redditAPI: true,
@@ -22,6 +22,18 @@ Devvit.addMenuItem({
 Devvit.addTrigger({
   event: "CommentSubmit",
   onEvent: checkComment,
+});
+
+// Cache modlist during app install or upgrade
+Devvit.addTrigger({
+  events: ['AppInstall', 'AppUpgrade'],
+  onEvent: onAppChanged,
+});
+
+// Update cached modlist on modlist change
+Devvit.addTrigger({
+  event: 'ModAction',
+  onEvent: onModAction,
 });
 
 export default Devvit;

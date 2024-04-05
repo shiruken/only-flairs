@@ -40,3 +40,36 @@ export async function clearPostSettings(post_id: string, context: Context): Prom
     .del(post_id)
     .catch((e) => console.error(`Error deleting ${post_id} in Redis`, e));
 }
+
+/**
+ * Get array of cached moderator usernames from Redis
+ * @param context A TriggerContext object
+ * @returns A promise that resolves to an array of moderator usernames
+ */
+export async function getModerators(context: TriggerContext): Promise<string[] | undefined> {
+  const moderators = await context.redis.get("$mods");
+  if (!moderators) {
+    return undefined;
+  }
+  return moderators.split(",");
+}
+
+/**
+ * Write array of moderator usernames in Redis
+ * @param moderators Array of moderator usernames
+ * @param context A TriggerContext object
+ */
+export async function storeModerators(moderators: string[], context: TriggerContext) {
+  await context.redis
+    .set("$mods", moderators.toString())
+    .then(() => console.log(`Wrote ${moderators.length} moderators to Redis`))
+    .catch((e) => console.error('Error writing moderators to Redis', e));
+}
+
+/**
+ * Clear cached modlist from Redis
+ * @param context A Context object
+ */
+export async function clearModerators(context: TriggerContext): Promise<void> {
+  await context.redis.del("$mods");
+}

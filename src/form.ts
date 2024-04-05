@@ -62,6 +62,13 @@ export const form = Devvit.createForm((data) => {
         defaultValue: settings ? settings.top_level_only : false,
       },
       {
+        name: "exclude_mods",
+        label: "Exclude Moderators",
+        helpText: "Exclude subreddit moderators from comment restrictions",
+        type: "boolean",
+        defaultValue: settings ? settings.exclude_mods : true,
+      },
+      {
         name: "removal_reason",
         label: "Removal Reason",
         helpText: "Subreddit removal reason to use on actioned comments",
@@ -138,6 +145,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Updated Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
+                `* **Exclude moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
@@ -192,6 +200,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Configuration**\n\n` +
                 `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
+                `* **Exclude moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,

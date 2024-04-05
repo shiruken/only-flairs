@@ -10,6 +10,8 @@ export type PostSettings = {
   is_enabled: boolean;
   /** Only apply restriction to top-level comments */
   top_level_only: boolean;
+  /** Exclude subreddit moderators from comment restrictions */
+  exclude_mods: boolean;
   /** Duration (in seconds) until flaired user only mode is disabled */
   expiration: number;
   /** Subreddit removal reason to use on actioned comments */
