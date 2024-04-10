@@ -44,7 +44,7 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   if (!author.flair) {
-    throw new Error("Author flair object missing from event data");
+    console.error(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
   }
 
   const settings = await getPostSettings(comment.postId, context);
@@ -64,13 +64,13 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
       console.error('Cached modlist is empty. Unable to exclude moderators from commenting restrictions.');
     } else {
       if (mods.includes(author.name)) {
-        console.log(`Skipped ${comment.id} by moderator u/${author.name}`)
+        console.log(`Skipped ${comment.id} by moderator u/${author.name}`);
         return;
       }
     }
   }
 
-  if (author.flair.text == "") {
+  if (!author.flair || author.flair.text == "") {
     const commentAPI = await context.reddit.getCommentById(comment.id);
     await commentAPI
       .remove()
