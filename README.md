@@ -1,4 +1,4 @@
-# Only Flairs
+# ![Only Flairs Logo](https://github.com/shiruken/only-flairs/assets/867617/a9343ef4-82ce-4bea-a5cf-705c5318b7c8)
 
 Easily restrict commenting on individual posts to only users [flaired](https://support.reddithelp.com/hc/en-us/articles/15484503095060-User-Flair) in your subreddit.
 
