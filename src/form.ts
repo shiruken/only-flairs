@@ -125,7 +125,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
   // Could pass through form data from showPostRestrictForm() handler but starts getting messy
   const settings_old = await getPostSettings(event.values.post_id, context);
 
-  const mod = await context.reddit.getCurrentUser();
+  const mod = (await context.reddit.getCurrentUser())!;
   const post = await context.reddit.getPostById(settings.post_id);
 
   if (settings.is_enabled) {
