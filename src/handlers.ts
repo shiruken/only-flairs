@@ -43,10 +43,6 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     return;
   }
 
-  if (!author.flair) {
-    console.error(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
-  }
-
   const settings = await getPostSettings(comment.postId, context);
   if (!settings) {
     return;
@@ -70,7 +66,11 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     }
   }
 
-  if (!author.flair || author.flair.text == "") {
+  if (!author.flair) {
+    console.error(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
+  }
+
+  if (!author.flair || author.flair.text == "") {  
     const commentAPI = await context.reddit.getCommentById(comment.id);
     await commentAPI
       .remove()
