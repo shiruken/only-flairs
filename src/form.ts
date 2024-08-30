@@ -73,9 +73,10 @@ export const form = Devvit.createForm((data) => {
         label: "Removal Reason",
         helpText: "Subreddit removal reason to use on actioned comments",
         type: "select",
+        required: true,
         multiSelect: false,
         options: removal_reason_options,
-        defaultValue: (settings && settings.removal_reason) ? [ JSON.stringify(settings.removal_reason) ] : [ "" ],
+        defaultValue: [ (settings && settings.removal_reason) ? JSON.stringify(settings.removal_reason) : "" ],
       },
       {
         name: "sticky_comment_text",
@@ -89,9 +90,10 @@ export const form = Devvit.createForm((data) => {
         label: "Expiration",
         helpText: "Automatically disable after selected duration",
         type: "select",
+        required: true,
         multiSelect: false,
         options: expiration_options,
-        defaultValue: settings ? [ settings.expiration.toString() ] : [ expiration_default.toString() ],
+        defaultValue: [ settings ? settings.expiration.toString() : expiration_default.toString() ],
       },
     ],
   };
@@ -104,13 +106,11 @@ export const form = Devvit.createForm((data) => {
  */
 async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
 
-  // Convert `select` fields from string[] type
-  if (event.values.removal_reason[0]) {
-    event.values.removal_reason = JSON.parse(event.values.removal_reason[0]) as RemovalReason;
-  } else {
-    event.values.removal_reason = undefined;
+  // Parse form values
+  if (event.values.removal_reason) {
+    event.values.removal_reason = JSON.parse(event.values.removal_reason) as RemovalReason;
   }
-  event.values.expiration = Number(event.values.expiration[0]);
+  event.values.expiration = Number(event.values.expiration);
 
   const settings = event.values as PostSettings;
 
