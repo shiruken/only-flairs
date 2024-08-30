@@ -93,13 +93,6 @@ export const form = Devvit.createForm((data) => {
         options: expiration_options,
         defaultValue: settings ? [ settings.expiration.toString() ] : [ expiration_default.toString() ],
       },
-      {
-        name: "post_id", // Necessary to pass-through post information
-        label: "Post ID",
-        type: "string",
-        defaultValue: data.post_id,
-        disabled: true,
-      },
     ],
   };
 }, processForm);
@@ -121,9 +114,14 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
 
   const settings = event.values as PostSettings;
 
-  // Load current post settings
+  if (!context.postId) {
+    throw new Error("postId missing from context object");
+  }
+  settings.post_id = context.postId;
+
+  // Load previous post settings
   // Could pass through form data from showPostRestrictForm() handler but starts getting messy
-  const settings_old = await getPostSettings(event.values.post_id, context);
+  const settings_old = await getPostSettings(settings.post_id, context);
 
   const mod = (await context.reddit.getCurrentUser())!;
   const post = await context.reddit.getPostById(settings.post_id);

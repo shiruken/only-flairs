@@ -17,7 +17,7 @@ export async function storePostSettings(settings: PostSettings, context: Context
 }
 
 /**
- * Read {@link PostSettings}} object for a post from Redis
+ * Read {@link PostSettings} object for a post from Redis
  * @param post_id A Reddit post ID (including `t3_` prefix)
  * @param context A Context or TriggerContext object
  * @returns A Promise that resolves to a {@link PostSettings} object if found, otherwise `undefined`
