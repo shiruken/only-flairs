@@ -1,4 +1,4 @@
-import { Context, Devvit, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
@@ -23,6 +23,17 @@ const DURATIONS: Record<number, string> = {
  */
 export const form = Devvit.createForm((data) => {
   
+  // Generate options for `flairs` field
+  const flair_options: FieldConfig_Selection_Item[] = [
+    { label: "Any", value: "any" }
+  ];
+  for (const flair of data.flairs as FlairTemplate[]) {
+    flair_options.push({
+      label: flair.text,
+      value: flair.id,
+    });
+  }
+
   // Generate options for `removal_reason` field
   const removal_reason_options: FieldConfig_Selection_Item[] = [
     { label: "None", value: "" }
@@ -53,6 +64,16 @@ export const form = Devvit.createForm((data) => {
         helpText: "Enable or disable flaired user only mode",
         type: "boolean",
         defaultValue: settings ? settings.is_enabled : false,
+      },
+      {
+        name: "flairs",
+        label: "User Flairs",
+        helpText: "Only allow comments from users with the selected flair(s)",
+        type: "select",
+        required: true,
+        multiSelect: true,
+        options: flair_options,
+        defaultValue: settings ? settings.flairs : [ "any" ],
       },
       {
         name: "top_level_only",
@@ -106,6 +127,19 @@ export const form = Devvit.createForm((data) => {
  */
 async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
 
+  if (!event.values.flairs) {
+    context.ui.showToast({
+      text: "Commenting restriction not applied. No user flairs were selected.",
+      appearance: "neutral",
+    });
+    return;
+  }
+
+  if (event.values.flairs.includes("any")) {
+    event.values.flairs = [ "any" ];
+    console.log("Flairs selected in addition to 'any', forcing 'any'");
+  }
+
   // Parse form values
   if (event.values.removal_reason) {
     event.values.removal_reason = JSON.parse(event.values.removal_reason) as RemovalReason;
@@ -127,6 +161,20 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
   const post = await context.reddit.getPostById(settings.post_id);
 
   if (settings.is_enabled) {
+
+    // Format flair titles for display
+    let user_flairs_text = "Any";
+    if (!settings.flairs.includes("any")) {
+      const flairs = await context.reddit.getUserFlairTemplates(post.subredditName);
+      const flairs_text: string[] = [];
+      for (const flair of flairs as FlairTemplate[]) {
+        if (settings.flairs.includes(flair.id)) {
+          flairs_text.push("`" + flair.text + "`");
+        }
+      }
+      user_flairs_text = flairs_text.join(", ");
+    }
+
     if (settings_old) { // Edit
 
       // Propagate to new settings
@@ -142,8 +190,9 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
           body: `u/${mod.username} has edited flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Updated Configuration**\n\n` +
-                `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
-                `* **Exclude moderators:** ${settings.exclude_mods}\n\n` +
+                `* **User Flairs:** ${user_flairs_text}\n\n` +
+                `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+                `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
@@ -197,8 +246,9 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
           body: `u/${mod.username} has enabled flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Configuration**\n\n` +
-                `* **Only restrict top-level comments:** ${settings.top_level_only}\n\n` +
-                `* **Exclude moderators:** ${settings.exclude_mods}\n\n` +
+                `* **User Flairs:** ${user_flairs_text}\n\n` +
+                `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+                `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,

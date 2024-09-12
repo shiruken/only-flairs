@@ -8,6 +8,8 @@ export type PostSettings = {
   post_id: string;
   /** Enable flaired user only mode */
   is_enabled: boolean;
+  /** Only allow comments from users with these flair template IDs */
+  flairs: string[];
   /** Only apply restriction to top-level comments */
   top_level_only: boolean;
   /** Exclude subreddit moderators from comment restrictions */

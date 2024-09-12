@@ -11,10 +11,12 @@ import { clearModerators, getModerators, getPostSettings, storeModerators } from
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   const subreddit = await context.reddit.getCurrentSubreddit();
   const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
-  const settings = await getPostSettings(event.targetId, context); // Current settings
+  const flairs = await context.reddit.getUserFlairTemplates(subreddit.name);
+  const settings = await getPostSettings(event.targetId, context); // Current settings for post
   const sticky_comment_text_default = await context.settings.get<string>("sticky_comment_text_default");
   const data = {
     removal_reasons: removal_reasons,
+    flairs: flairs,
     settings: settings,
     sticky_comment_text_default: sticky_comment_text_default,
   };
@@ -69,7 +71,11 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     console.error(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
   }
 
-  if (!author.flair || author.flair.text == "") {  
+  if (
+    !author.flair ||
+    author.flair.text == "" ||
+    (!settings.flairs.includes("any") && !settings.flairs.includes(author.flair.templateId))
+  ) {
     const commentAPI = await context.reddit.getCommentById(comment.id);
     await commentAPI
       .remove()
