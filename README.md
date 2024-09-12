@@ -58,10 +58,29 @@ A Modmail conversation is created when flaired user only mode is enabled on a po
 
 * Sticky comments will be edited or deleted as the configuration on an individual post is modified
 * Manually disabling flaired user only mode will result in the sticky comment being deleted
-* Sticky comments _are not automatically deleted_ when the comment restriction expires
+* Sticky comments *are not automatically deleted* when the comment restriction expires
+
+## Changelog
+
+*[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
+
+* v0.4
+  * Add option to specify user flairs that are allowed to comment
+  * Default to removing comments if user flair information is missing
+* v0.3
+  * Add option to exclude moderators
+  * Automatically post sticky comment with user-defined text
+  * Specify default sticky comment text in installation settings
+  * Allow specifying removal reason
+* v0.2
+  * Send Modmail on configuration change
+  * Automatically expire restrictions after user-specified duration
+  * Add option to ignore comment replies
+  * If already enabled, use the current settings when displaying the form
+* v0.1
+  * Initial Release
 
 ## Links
 
 * [Source Code](https://github.com/shiruken/only-flairs)
-* [Changelog](https://github.com/shiruken/only-flairs/releases)
 * [Reddit: User Flair](https://support.reddithelp.com/hc/en-us/articles/15484503095060-User-Flair)
