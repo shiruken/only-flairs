@@ -7,44 +7,56 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 ## Features
 
 * Minimal setup requiring **zero** knowledge about AutoModerator or coding
-* Moderator enabled on a post-by-post basis
-* Automatically removes all comments from unflaired users
+* Moderator enabled on a **post-by-post** basis
+* Automatically removes incoming comments from unflaired users
+  * Easily specify which user flairs are allowed to comment
   * Optionally allow replies to top-level comments
-  * Easily apply subreddit removal reason to actions
-* Customizable sticky comment to inform users
-* Restrictions expire after user-selected duration
+  * Apply subreddit removal reason to actions
+* Customizable sticky comment to inform users about restrictions
+* Automatically disabled after user-selected duration
 * Notifications via Modmail
 
-## Screenshots
+## Installation Settings
 
-### Installation Settings
-
-![Screenshot of Installation Settings](https://github.com/shiruken/only-flairs/assets/867617/e01adb76-f655-4d91-ac26-69b8cd29f3a6)
+![Screenshot of Installation Settings](https://github.com/user-attachments/assets/491f09b7-1dbd-4afa-99b3-d571f55dcf6b)
 
 * **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Can be modified when configuring the settings on individual posts. Supports Markdown. Leave empty to disable.
 
-### Post Action
+## Menu Action: Restrict to Flaired Users
 
-![Mod Menu Action](https://github.com/shiruken/only-flairs/assets/867617/e8812150-5be4-4384-876c-4c2957e2b3c5) ![Post Restriction Settings](https://github.com/shiruken/only-flairs/assets/867617/1aa704f4-f802-4ea0-9d6a-eab91c3f172c)
+This action appears under the moderator menu on posts in the subreddit. It allows for enabling and configuring flair-based commenting restrictions on the post.
 
+![Screenshot of 'Restrict to Flaired Users' Menu Action](https://github.com/user-attachments/assets/2fc1d886-af64-4b4b-b413-c4a63e86c725) ![Screenshot of 'Restrict to Flaired Users' Form](https://github.com/user-attachments/assets/c3001f87-a84e-4ed0-976b-7f06717549be)
 
-* Sticky comment text defaults to the value defined in the app installation settings.
+* **Enable:** Enable or disable flaired user only mode (make sure to actually enable it!)
+* **User Flairs:** Only allow comments from users with the selected flair(s). The 'Any' option allows any user with flair to comment.
+* **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
+* **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
+* **Removal Reason:** Subreddit removal reason to use on actioned comments. Select 'None' to specify no removal reason.
+* **Sticky Comment:** Text for the sticky comment on the post. Leave empty to disable. Defaults to the value defined in the installation settings.
+* **Expiration:** Automatically disable comment restrictions after selected duration
 
-### Removed Comment
+## Notifications: Modmail
 
-![Removed Comment](https://github.com/shiruken/only-flairs/assets/867617/fc290373-2176-4ef4-bd7a-5d2aaa20b654)
+![Screenshot of Modmail Conversation](https://github.com/user-attachments/assets/8f21499f-0efc-499a-ba38-dc0ba0abffcf)
 
-### Stickied Comment
+## Moderation Actions
 
-![Stickied Comment](https://github.com/shiruken/only-flairs/assets/867617/ff0e6f51-4248-4679-8f72-54b8f993e7c3)
+### Comment Removal
 
-* Sticky comments will be edited or deleted as the configuration on an individual post is modified.
-* Manually disabling flaired user only mode will result in the sticky comment being deleted.
-* Sticky comments _are not automatically deleted_ when the comment restriction expires.
+![Screenshot of Removed Comment](https://github.com/user-attachments/assets/f33d2323-11ba-41f7-a8c6-fc881d142f09)
 
-### Modmail Notifications
+![Screenshot of Mod Log Entry](https://github.com/user-attachments/assets/d36adb08-9fde-4be3-9cd0-672a045c7c88)
 
-![Modmail Conversation](https://github.com/shiruken/only-flairs/assets/867617/c879ea59-d449-4ad0-b4f6-43559d0ced33)
+* No removal reason will be applied if the corresponding setting is set to 'None'
+
+### Sticky Comment
+
+![Screenshot of Sticky Comment](https://github.com/user-attachments/assets/041f9548-a6e7-4f85-b680-f77ba731ec9c)
+
+* Sticky comments will be edited or deleted as the configuration on an individual post is modified
+* Manually disabling flaired user only mode will result in the sticky comment being deleted
+* Sticky comments _are not automatically deleted_ when the comment restriction expires
 
 ## Links
 
