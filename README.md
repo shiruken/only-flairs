@@ -38,6 +38,8 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 ## Notifications: Modmail
 
+A Modmail conversation is created when flaired user only mode is enabled on a post. Any changes to the configuration are reported as responses to the original message.
+
 ![Screenshot of Modmail Conversation](https://github.com/user-attachments/assets/8f21499f-0efc-499a-ba38-dc0ba0abffcf)
 
 ## Moderation Actions
@@ -48,7 +50,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 ![Screenshot of Mod Log Entry](https://github.com/user-attachments/assets/d36adb08-9fde-4be3-9cd0-672a045c7c88)
 
-* No removal reason will be applied if the corresponding setting is set to 'None'
+* No removal reason will be applied if the 'Removal Reason' setting is set to 'None'
 
 ### Sticky Comment
 
