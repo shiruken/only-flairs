@@ -68,12 +68,12 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   if (!author.flair) {
-    console.error(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
+    console.warn(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
   }
 
   if (
     !author.flair ||
-    author.flair.text == "" ||
+    (author.flair.text == "" && author.flair.templateId == "") ||
     (!settings.flairs.includes("any") && !settings.flairs.includes(author.flair.templateId))
   ) {
     const commentAPI = await context.reddit.getCommentById(comment.id);
