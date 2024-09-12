@@ -36,12 +36,12 @@ export const form = Devvit.createForm((data) => {
 
   // Generate options for `removal_reason` field
   const removal_reason_options: FieldConfig_Selection_Item[] = [
-    { label: "None", value: "" }
+    { label: "None", value: "none" }
   ];
   for (const reason of data.removal_reasons as RemovalReason[]) {
     removal_reason_options.push({
       label: reason.title,
-      value: JSON.stringify(reason),
+      value: reason.id,
     });
   }
 
@@ -97,7 +97,7 @@ export const form = Devvit.createForm((data) => {
         required: true,
         multiSelect: false,
         options: removal_reason_options,
-        defaultValue: [ (settings && settings.removal_reason) ? JSON.stringify(settings.removal_reason) : "" ],
+        defaultValue: [ (settings && settings.removal_reason) ? settings.removal_reason : "none" ],
       },
       {
         name: "sticky_comment_text",
@@ -127,23 +127,23 @@ export const form = Devvit.createForm((data) => {
  */
 async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
 
-  if (!event.values.flairs) {
-    context.ui.showToast({
-      text: "Commenting restriction not applied. No user flairs were selected.",
-      appearance: "neutral",
-    });
-    return;
+  if (!event.values.flairs || event.values.flairs.length == 0) {
+    event.values.flairs = [ "any" ];
+    console.warn("No flair selected, defaulting to 'any'");
   }
 
-  if (event.values.flairs.includes("any")) {
+  if (event.values.flairs.length > 1 && event.values.flairs.includes("any")) {
     event.values.flairs = [ "any" ];
-    console.log("Flairs selected in addition to 'any', forcing 'any'");
+    console.warn("Flairs selected in addition to 'any', forcing 'any'");
+  }
+
+  if (!event.values.removal_reason || event.values.removal_reason.length == 0) {
+    event.values.removal_reason = [ "none" ];
+    console.warn("No removal reason selected, defaulting to 'none'");
   }
 
   // Parse form values
-  if (event.values.removal_reason) {
-    event.values.removal_reason = JSON.parse(event.values.removal_reason) as RemovalReason;
-  }
+  event.values.removal_reason = event.values.removal_reason[0];
   event.values.expiration = Number(event.values.expiration);
 
   const settings = event.values as PostSettings;
@@ -175,6 +175,18 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
       user_flairs_text = flairs_text.join(", ");
     }
 
+    // Format removal reason for display
+    let removal_reason_text = "None";
+    if (settings.removal_reason != "none") {
+      const reasons = await context.reddit.getSubredditRemovalReasons(post.subredditName);
+      for (const reason of reasons) {
+        if (settings.removal_reason == reason.id) {
+          removal_reason_text = "`" + reason.title + "`";
+          break;
+        }
+      }
+    }
+
     if (settings_old) { // Edit
 
       // Propagate to new settings
@@ -193,7 +205,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `* **User Flairs:** ${user_flairs_text}\n\n` +
                 `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
                 `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
+                `* **Removal Reason:** ${removal_reason_text}\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
         });
@@ -249,7 +261,7 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
                 `* **User Flairs:** ${user_flairs_text}\n\n` +
                 `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
                 `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                `* **Removal Reason:** ${settings.removal_reason ? settings.removal_reason.title : "None" }\n\n` +
+                `* **Removal Reason:** ${removal_reason_text}\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
         });

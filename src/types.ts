@@ -1,5 +1,3 @@
-import { RemovalReason } from "@devvit/public-api";
-
 /**
  * Settings for configuring flaired user only mode on a post
  */
@@ -16,8 +14,8 @@ export type PostSettings = {
   exclude_mods: boolean;
   /** Duration (in seconds) until flaired user only mode is disabled */
   expiration: number;
-  /** Subreddit removal reason to use on actioned comments */
-  removal_reason?: RemovalReason;
+  /** Removal reason ID to use on actioned comments */
+  removal_reason: string;
   /** ModMail conversation ID for use with follow-up messages */
   conversation_id?: string;
   /** Text to use in sticky comment */

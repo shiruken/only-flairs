@@ -10,15 +10,15 @@ import { clearModerators, getModerators, getPostSettings, storeModerators } from
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   const subreddit = await context.reddit.getCurrentSubreddit();
-  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
-  const flairs = await context.reddit.getUserFlairTemplates(subreddit.name);
   const settings = await getPostSettings(event.targetId, context); // Current settings for post
   const sticky_comment_text_default = await context.settings.get<string>("sticky_comment_text_default");
+  const flairs = await context.reddit.getUserFlairTemplates(subreddit.name);
+  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
   const data = {
-    removal_reasons: removal_reasons,
-    flairs: flairs,
     settings: settings,
     sticky_comment_text_default: sticky_comment_text_default,
+    flairs: flairs,
+    removal_reasons: removal_reasons,
   };
   context.ui.showForm(form, data);
 }
@@ -84,7 +84,7 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
     await commentAPI
       .addRemovalNote({
-        reasonId: settings.removal_reason ? settings.removal_reason.id : "",
+        reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
         modNote: `Commenting restricted to flaired users on ${comment.postId}`,
       })
       .catch((e) => console.error(`Error adding removal note to ${comment.id} by u/${author.name}`, e));
