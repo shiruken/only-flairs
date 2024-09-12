@@ -77,7 +77,7 @@ export const form = Devvit.createForm((data) => {
       },
       {
         name: "top_level_only",
-        label: "Only restrict top-level comments",
+        label: "Only Restrict Top-Level Comments",
         helpText: "Allow comment replies from any user regardless of flair",
         type: "boolean",
         defaultValue: settings ? settings.top_level_only : false,
