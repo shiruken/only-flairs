@@ -65,19 +65,23 @@ A Modmail conversation is created when flaired user only mode is enabled on a po
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 * v0.4
+  * Improved checking for presence of user flair
   * Add option to specify user flairs that are allowed to comment
-  * Default to removing comments if user flair information is missing
 * v0.3
+  * Resolved issue with blank options appearing in form for Removal Reason and Expiration fields
+  * Simplified form by eliminating pass-through variable
+  * Default to removing comments if user flair information is missing
   * Add option to exclude moderators
+* v0.2
   * Automatically post sticky comment with user-defined text
   * Specify default sticky comment text in installation settings
   * Allow specifying removal reason
-* v0.2
   * Send Modmail on configuration change
+  * Improve messaging when configuration is unchanged or form is submitted without enabling
+* v0.1
   * Automatically expire restrictions after user-specified duration
   * Add option to ignore comment replies
   * If already enabled, use the current settings when displaying the form
-* v0.1
   * Initial Release
 
 ## Links
