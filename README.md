@@ -65,6 +65,7 @@ A Modmail conversation is created when flaired user only mode is enabled on a po
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 * v0.4
+  * Modmail notifications are now routed into the Inbox rather than Mod Discussions
   * Improved checking for presence of user flair
   * Add option to specify user flairs that are allowed to comment
 * v0.3
