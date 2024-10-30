@@ -250,22 +250,21 @@ async function processForm(event: FormOnSubmitEvent, context: Context): Promise<
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      const { conversation } = await context.reddit.modMail
-        .createConversation({
-          to: "only-flairs",
-          subredditName: post.subredditName,
+      const conversationId = await context.reddit.modMail
+        .createModInboxConversation({
+          subredditId: post.subredditId,
           subject: `Flaired User Only Mode Enabled`,
-          body: `u/${mod.username} has enabled flaired user only mode on ` +
-                `[${post.title}](${post.permalink}).\n\n` + 
-                `**Configuration**\n\n` +
-                `* **User Flairs:** ${user_flairs_text}\n\n` +
-                `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
-                `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                `* **Removal Reason:** ${removal_reason_text}\n\n` +
-                `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
+          bodyMarkdown: `u/${mod.username} has enabled flaired user only mode on ` +
+                        `[${post.title}](${post.permalink}).\n\n` + 
+                        `**Configuration**\n\n` +
+                        `* **User Flairs:** ${user_flairs_text}\n\n` +
+                        `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+                        `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+                        `* **Removal Reason:** ${removal_reason_text}\n\n` +
+                        `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+                        `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
         });
-      settings.conversation_id = conversation.id; // Store for sending follow-up messages
+      settings.conversation_id = conversationId; // Store for sending follow-up messages
 
       // Sticky Comment
       if (settings.sticky_comment_text) {
