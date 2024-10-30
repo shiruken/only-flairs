@@ -1,4 +1,4 @@
-import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONArray, JSONObject, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
@@ -126,7 +126,10 @@ export const form = Devvit.createForm((data) => {
  * @param event A FormOnSubmitEvent object
  * @param context A Context object
  */
-async function processForm(event: FormOnSubmitEvent, context: Context): Promise<void> {
+async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
+
+  event.values.flairs = event.values.flairs as JSONArray;
+  event.values.removal_reason = event.values.removal_reason as JSONArray;
 
   if (!event.values.flairs || event.values.flairs.length == 0) {
     event.values.flairs = [ "any" ];
