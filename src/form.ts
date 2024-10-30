@@ -27,6 +27,7 @@ export const form = Devvit.createForm((data) => {
   const flair_options: FieldConfig_Selection_Item[] = [
     { label: "Any", value: "any" }
   ];
+  data.flairs = JSON.parse(data.flairs);
   for (const flair of data.flairs as FlairTemplate[]) {
     flair_options.push({
       label: flair.text,

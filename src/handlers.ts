@@ -15,9 +15,9 @@ export async function showPostRestrictForm(event: MenuItemOnPressEvent, context:
   const flairs = await context.reddit.getUserFlairTemplates(subreddit.name);
   const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
   const data = {
-    settings: settings,
-    sticky_comment_text_default: sticky_comment_text_default,
-    flairs: flairs,
+    settings: settings ?? '',
+    sticky_comment_text_default: sticky_comment_text_default ?? '',
+    flairs: JSON.stringify(flairs),
     removal_reasons: removal_reasons,
   };
   context.ui.showForm(form, data);
