@@ -20,7 +20,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 ![Screenshot of Installation Settings](https://github.com/user-attachments/assets/491f09b7-1dbd-4afa-99b3-d571f55dcf6b)
 
-* **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Can be modified when configuring the settings on individual posts. Supports Markdown. Leave empty to disable.
+* **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Can be modified when configuring the settings on individual posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable.
 
 ## Menu Action: Restrict to Flaired Users
 
@@ -33,7 +33,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 * **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
 * **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
 * **Removal Reason:** Subreddit removal reason to use on actioned comments. Select 'None' to specify no removal reason.
-* **Sticky Comment:** Text for the sticky comment on the post. Leave empty to disable. Defaults to the value defined in the installation settings.
+* **Sticky Comment:** Text for the sticky comment on the post. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Defaults to the value defined in the installation settings.
 * **Expiration:** Automatically disable comment restrictions after selected duration
 
 ## Notifications: Modmail

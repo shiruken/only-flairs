@@ -104,7 +104,7 @@ export const form = Devvit.createForm((data) => {
       {
         name: "sticky_comment_text",
         label: "Sticky Comment",
-        helpText: "Post sticky comment with above text. Leave empty to disable. Set default value in app settings.",
+        helpText: "Post sticky comment with above text. Use the placeholder %%flair%% to include a list of the selected flairs. Leave empty to disable. Set default value in app settings.",
         type: "paragraph",
         defaultValue: settings ? settings.sticky_comment_text : data.sticky_comment_text_default,
       },
@@ -180,6 +180,9 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       user_flairs_text = flairs_text.join(", ");
     }
 
+    // Populate placeholder in sticky comment
+    const sticky_comment_text = settings.sticky_comment_text.replace("%%flair%%", user_flairs_text);
+
     // Format removal reason for display
     let removal_reason_text = "None";
     if (settings.removal_reason != "none") {
@@ -212,16 +215,19 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
                 `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Removal Reason:** ${removal_reason_text}\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
+                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
         });
 
         // Sticky Comment
         if (settings.sticky_comment_id) {
           if (settings.sticky_comment_text) {
-            if (settings.sticky_comment_text != settings_old.sticky_comment_text) {
+            if (
+              (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
+              (settings.sticky_comment_text.includes("%%flair%%") && settings.flairs != settings_old.flairs)
+            ) {
               const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
               await comment.edit({
-                text: settings.sticky_comment_text,
+                text: sticky_comment_text,
               });
             }
           } else {
@@ -233,7 +239,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
           if (settings.sticky_comment_text) {
             const comment = await context.reddit.submitComment({
               id: settings.post_id,
-              text: settings.sticky_comment_text,
+              text: sticky_comment_text,
             });
             await comment.distinguish(true); // Distinguish + Sticky
             settings.sticky_comment_id = comment.id;
@@ -267,7 +273,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
                         `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
                         `* **Removal Reason:** ${removal_reason_text}\n\n` +
                         `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                        `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(settings.sticky_comment_text) : "None"}`,
+                        `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
         });
       settings.conversation_id = conversationId; // Store for sending follow-up messages
 
@@ -275,7 +281,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       if (settings.sticky_comment_text) {
         const comment = await context.reddit.submitComment({
           id: settings.post_id,
-          text: settings.sticky_comment_text,
+          text: sticky_comment_text,
         });
         await comment.distinguish(true); // Distinguish + Sticky
         settings.sticky_comment_id = comment.id;
