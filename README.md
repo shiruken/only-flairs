@@ -18,15 +18,15 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 ## Installation Settings
 
-![Screenshot of Installation Settings](https://github.com/user-attachments/assets/491f09b7-1dbd-4afa-99b3-d571f55dcf6b)
+![Screenshot of Installation Settings](https://github.com/user-attachments/assets/58f9bf21-8169-4ed0-9aef-69fd714b4e34)
 
-* **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Can be modified when configuring the settings on individual posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable.
+* **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Can be modified when configuring the settings on individual posts.
 
 ## Menu Action: Restrict to Flaired Users
 
 This action appears under the moderator menu on posts in the subreddit. It allows for enabling and configuring flair-based commenting restrictions on the post.
 
-![Screenshot of 'Restrict to Flaired Users' Menu Action](https://github.com/user-attachments/assets/2fc1d886-af64-4b4b-b413-c4a63e86c725) ![Screenshot of 'Restrict to Flaired Users' Form](https://github.com/user-attachments/assets/c3001f87-a84e-4ed0-976b-7f06717549be)
+![Screenshot of 'Restrict to Flaired Users' Menu Action](https://github.com/user-attachments/assets/2fc1d886-af64-4b4b-b413-c4a63e86c725) ![Screenshot of 'Restrict to Flaired Users' Form](https://github.com/user-attachments/assets/d9f262fd-1a44-466a-b8de-2946ab729cdf)
 
 * **Enable:** Enable or disable flaired user only mode (make sure to actually enable it!)
 * **User Flairs:** Only allow comments from users with the selected flair(s). The 'Any' option allows any user with flair to comment.
@@ -64,6 +64,9 @@ A Modmail conversation is created when flaired user only mode is enabled on a po
 
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
+* v0.5
+  * Add placeholder text to include list of flairs in sticky comment
+  * Add option to disable automatic expiration
 * v0.4
   * Modmail notifications are now routed into the Inbox rather than Mod Discussions
   * Improved checking for presence of user flair
