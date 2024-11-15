@@ -5,6 +5,7 @@ import { clearPostSettings, getPostSettings, storePostSettings } from "./storage
 
 // Define expiration durations (in seconds) and associated labels
 const DURATIONS: Record<number, string> = {
+  0: "Never",
   3600: "1 hour",
   7200: "2 hours",
   14400: "4 hours",
@@ -52,7 +53,7 @@ export const form = Devvit.createForm((data) => {
     .map(([key, value]) => {
       return { label: value, value: key };
     });
-  const expiration_default = Object.keys(DURATIONS).slice(-1);
+  const expiration_default = Object.keys(DURATIONS).slice(-1); // 30 days
 
   return {
     title: "Restrict to Flaired Users",

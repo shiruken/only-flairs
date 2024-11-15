@@ -11,9 +11,11 @@ export async function storePostSettings(settings: PostSettings, context: Context
   await context.redis
     .set(settings.post_id, value)
     .catch((e) => console.error(`Error writing ${settings.post_id} to Redis`, e));
-  await context.redis
-    .expire(settings.post_id, settings.expiration)
-    .catch((e) => console.error(`Error setting expiration (${settings.expiration}) for ${settings.post_id} in Redis`, e));
+  if (settings.expiration > 0) {
+    await context.redis
+      .expire(settings.post_id, settings.expiration)
+      .catch((e) => console.error(`Error setting expiration (${settings.expiration}) for ${settings.post_id} in Redis`, e));
+  }
 }
 
 /**
