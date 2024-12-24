@@ -4,7 +4,6 @@ import { checkComment, onAppChanged, onModAction, showPostRestrictForm } from ".
 
 Devvit.configure({
   redditAPI: true,
-  redis: true,
 });
 
 Devvit.addSettings(settings);
