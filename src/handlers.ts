@@ -9,11 +9,11 @@ import { clearModerators, getModerators, getPostSettings, storeModerators } from
  * @param context A Context object
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
-  const subreddit = await context.reddit.getCurrentSubreddit();
+  const subreddit = await context.reddit.getCurrentSubredditName();
   const settings = await getPostSettings(event.targetId, context); // Current settings for post
   const sticky_comment_text_default = await context.settings.get<string>("sticky_comment_text_default");
-  const flairs = await context.reddit.getUserFlairTemplates(subreddit.name);
-  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit.name);
+  const flairs = await context.reddit.getUserFlairTemplates(subreddit);
+  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit);
   const data = {
     settings: settings ?? '',
     sticky_comment_text_default: sticky_comment_text_default ?? '',
