@@ -4,7 +4,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 [https://developers.reddit.com/apps/only-flairs](https://developers.reddit.com/apps/only-flairs)
 
-<img width="512" height="128" alt="Only Flairs" src="https://github.com/user-attachments/assets/468a304b-b63a-4998-9475-43b42b3feb50" />
+![Only Flairs](https://github.com/user-attachments/assets/468a304b-b63a-4998-9475-43b42b3feb50)
 
 ## Features
 
