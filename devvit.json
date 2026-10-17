@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "only-flairs-aop",
+  "name": "only-flairs",
   "permissions": {
     "reddit": true,
     "redis": true
@@ -13,8 +13,5 @@
       "onCommentSubmit",
       "onModAction"
     ]
-  },
-  "dev": {
-    "subreddit": "only_flairs_aop_dev"
   }
 }
