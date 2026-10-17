@@ -16,8 +16,6 @@ export type PostSettings = {
   expiration: number;
   /** Removal reason ID to use on actioned comments */
   removal_reason: string;
-  /** ModMail conversation ID for use with follow-up messages */
-  conversation_id?: string;
   /** Text to use in sticky comment */
   sticky_comment_text: string;
   /** Sticky comment ID */

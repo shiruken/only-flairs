@@ -197,14 +197,13 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     if (settings_old) { // Edit
 
       // Propagate to new settings
-      settings.conversation_id = settings_old.conversation_id;
       settings.sticky_comment_id = settings_old.sticky_comment_id;
 
       if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
         console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
 
-        // Send ModMail reply
-        settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
+        // Send ModMail
+        await notifyMods(context, post, {
           subject: `Flaired User Only Mode Edited`,
           body: `u/${mod.username} has edited flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
@@ -264,8 +263,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      // Store conversation for sending follow-up messages
-      settings.conversation_id = await notifyMods(context, post, undefined, {
+      await notifyMods(context, post, {
         subject: `Flaired User Only Mode Enabled`,
         body: `u/${mod.username} has enabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).\n\n` + 
@@ -302,8 +300,8 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     if (settings_old) { // Disable
       console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
 
-      // Send ModMail reply
-      await notifyMods(context, post, settings_old.conversation_id, {
+      // Send ModMail
+      await notifyMods(context, post, {
         subject: `Flaired User Only Mode Disabled`,
         body: `u/${mod.username} has disabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).`,
@@ -336,41 +334,21 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
 /**
  * Notify moderators via ModMail without letting failures block the caller
  *
- * Replies to an existing conversation when possible. Reddit rejects replies to
- * read-only conversations, in which case a new conversation is started.
+ * Starts a new conversation for every message because Reddit makes
+ * app-created conversations read-only, so replies are rejected.
  * @param context A Context object
  * @param post The restricted post
- * @param conversation_id ModMail conversation ID to reply to, if any
- * @param message Subject (for new conversations) and body of the message
- * @returns The ID of the conversation the message was sent to, or
- *   `conversation_id` if sending failed
+ * @param message Subject and body of the message
  */
-async function notifyMods(
-  context: Context,
-  post: Post,
-  conversation_id: string | undefined,
-  message: { subject: string, body: string },
-): Promise<string | undefined> {
-  if (conversation_id) {
-    try {
-      await context.reddit.modMail.reply({
-        conversationId: conversation_id,
-        body: message.body,
-      });
-      return conversation_id;
-    } catch (e) {
-      console.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
-    }
-  }
+async function notifyMods(context: Context, post: Post, message: { subject: string, body: string }): Promise<void> {
   try {
-    return await context.reddit.modMail.createModInboxConversation({
+    await context.reddit.modMail.createModInboxConversation({
       subredditId: post.subredditId,
       subject: message.subject,
       bodyMarkdown: message.body,
     });
   } catch (e) {
     console.error(`Error sending ModMail for ${post.id}`, e);
-    return conversation_id;
   }
 }
 
