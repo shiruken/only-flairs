@@ -38,7 +38,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 ## Notifications: Modmail
 
-A Modmail notification is created when flaired user only mode is enabled on a post. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
+A notification is routed to Modmail's **Notifications** tab when flaired user only mode is enabled on a post. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
 
 ![Screenshot of Modmail Conversation](https://github.com/user-attachments/assets/8f21499f-0efc-499a-ba38-dc0ba0abffcf)
 
@@ -64,6 +64,10 @@ A Modmail notification is created when flaired user only mode is enabled on a po
 
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
+* v0.6
+  * Modmail notifications are now routed to the Notifications tab rather than the Inbox
+  * Support multiple `%%flair%%` placeholders in sticky comments
+  * Reliability improvements for flair detection and comment removal
 * v0.5
   * Add placeholder text to include list of flairs in sticky comment
   * Add option to disable automatic expiration
