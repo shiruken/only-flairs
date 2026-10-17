@@ -222,7 +222,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
             if (settings.sticky_comment_text) {
               if (
                 (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
-                (settings.sticky_comment_text.includes("%%flair%%") && settings.flairs != settings_old.flairs)
+                (settings.sticky_comment_text.includes("%%flair%%") && JSON.stringify(settings.flairs) != JSON.stringify(settings_old.flairs))
               ) {
                 const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
                 await comment.edit({
