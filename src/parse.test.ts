@@ -96,6 +96,30 @@ describe("parseFormValues", () => {
     expect(parseFormValues({ ...BASE, expiration: [ "0" ] }, "t3_abc").expiration).toBe(0);
   });
 
+  test("handles non-array or omitted flairs, removal_reason, and expiration", () => {
+    const values = {
+      is_enabled: [ "enabled" ],
+      flairs: undefined,
+      removal_reason: undefined,
+      expiration: undefined,
+      top_level_only: [ "no" ],
+      exclude_mods: [ "yes" ],
+    };
+    const settings = parseFormValues(values as any, "t3_abc");
+    expect(settings.flairs).toEqual([ "any" ]);
+    expect(settings.removal_reason).toBe("none");
+    expect(settings.expiration).toBe(0);
+  });
+
+  test("handles scalar expiration value", () => {
+    const values = {
+      ...BASE,
+      expiration: 86400,
+    };
+    const settings = parseFormValues(values as any, "t3_abc");
+    expect(settings.expiration).toBe(86400);
+  });
+
   test("produces identical JSON regardless of submitted key order", () => {
     // Change detection in processForm compares JSON strings
     const reordered = {
@@ -110,3 +134,4 @@ describe("parseFormValues", () => {
       .toBe(JSON.stringify(parseFormValues(BASE, "t3_abc")));
   });
 });
+

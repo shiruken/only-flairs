@@ -21,16 +21,15 @@ const DURATIONS: Record<number, string> = {
 };
 
 /**
- * Post restriction settings form
+ * Generates the post restriction settings form configuration
  */
-export const form = Devvit.createForm((data) => {
-  
+export function createFormConfig(data: any) {
   // Generate options for `flairs` field
   const flair_options: FieldConfig_Selection_Item[] = [
     { label: "Any", value: "any" }
   ];
-  data.flairs = JSON.parse(data.flairs);
-  for (const flair of data.flairs as FlairTemplate[]) {
+  const parsedFlairs = typeof data.flairs === "string" ? JSON.parse(data.flairs) : data.flairs;
+  for (const flair of (parsedFlairs ?? []) as FlairTemplate[]) {
     flair_options.push({
       label: flair.text,
       value: flair.id,
@@ -41,7 +40,7 @@ export const form = Devvit.createForm((data) => {
   const removal_reason_options: FieldConfig_Selection_Item[] = [
     { label: "None", value: "none" }
   ];
-  for (const reason of data.removal_reasons as RemovalReason[]) {
+  for (const reason of (data.removal_reasons ?? []) as RemovalReason[]) {
     removal_reason_options.push({
       label: reason.title,
       value: reason.id,
@@ -65,14 +64,14 @@ export const form = Devvit.createForm((data) => {
         name: "is_enabled",
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
-        type: "boolean",
+        type: "boolean" as const,
         defaultValue: !settings || settings.is_enabled,
       },
       {
         name: "flairs",
         label: "User Flairs",
         helpText: "Only allow comments from users with the selected flair(s)",
-        type: "select",
+        type: "select" as const,
         required: true,
         multiSelect: true,
         options: flair_options,
@@ -82,21 +81,21 @@ export const form = Devvit.createForm((data) => {
         name: "top_level_only",
         label: "Only Restrict Top-Level Comments",
         helpText: "Allow comment replies from any user regardless of flair",
-        type: "boolean",
+        type: "boolean" as const,
         defaultValue: settings ? settings.top_level_only : false,
       },
       {
         name: "exclude_mods",
         label: "Exclude Moderators",
         helpText: "Exclude subreddit moderators from comment restrictions",
-        type: "boolean",
+        type: "boolean" as const,
         defaultValue: !settings || settings.exclude_mods,
       },
       {
         name: "removal_reason",
         label: "Removal Reason",
         helpText: "Subreddit removal reason to use on actioned comments",
-        type: "select",
+        type: "select" as const,
         required: true,
         multiSelect: false,
         options: removal_reason_options,
@@ -106,14 +105,14 @@ export const form = Devvit.createForm((data) => {
         name: "sticky_comment_text",
         label: "Sticky Comment",
         helpText: "Post sticky comment with above text. Use the placeholder %%flair%% to include a list of the selected flairs. Leave empty to disable. Set default value in app settings.",
-        type: "paragraph",
+        type: "paragraph" as const,
         defaultValue: settings ? settings.sticky_comment_text : data.sticky_comment_text_default,
       },
       {
         name: "expiration",
         label: "Expiration",
         helpText: "Automatically disable after selected duration",
-        type: "select",
+        type: "select" as const,
         required: true,
         multiSelect: false,
         options: expiration_options,
@@ -121,14 +120,20 @@ export const form = Devvit.createForm((data) => {
       },
     ],
   };
-}, processForm);
+}
+
+/**
+ * Post restriction settings form
+ */
+export const form = Devvit.createForm(createFormConfig, processForm);
+
 
 /**
  * Process post restriction form after user submission
  * @param event A FormOnSubmitEvent object
  * @param context A Context object
  */
-async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
+export async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
 
   // Log raw submission for diagnosing form issues
   console.log(`Form values on ${context.postId}: ${JSON.stringify(event.values)}`);
@@ -361,6 +366,6 @@ export async function notifyMods(
  * @param text A string to format as quoted text
  * @returns A string containing quoted text
  */
-function quoteText(text: string): string {
+export function quoteText(text: string): string {
   return "\n >" + text.replace(/\n/g, "\n> ");
 }
