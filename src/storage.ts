@@ -67,11 +67,3 @@ export async function storeModerators(moderators: string[], context: TriggerCont
     .then(() => console.log(`Wrote ${moderators.length} moderators to Redis`))
     .catch((e) => console.error('Error writing moderators to Redis', e));
 }
-
-/**
- * Clear cached modlist from Redis
- * @param context A Context object
- */
-export async function clearModerators(context: TriggerContext): Promise<void> {
-  await context.redis.del("$mods");
-}

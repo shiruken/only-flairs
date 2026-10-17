@@ -1,7 +1,7 @@
 import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
-import { clearModerators, getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { getModerators, getPostSettings, storeModerators } from "./storage.js";
 
 /**
  * Shows form to adjust post restriction settings
@@ -56,10 +56,16 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
   // If enabled, exclude subreddit moderators
   if (settings.exclude_mods) {
-    const mods = await getModerators(context);
+    let mods = await getModerators(context);
     if (!mods) {
-      console.error('Cached modlist is empty. Unable to exclude moderators from commenting restrictions.');
-    } else {
+      console.warn('Cached modlist is empty, refreshing');
+      mods = await refreshModerators(context)
+        .catch((e) => {
+          console.error('Unable to refresh modlist. Unable to exclude moderators from commenting restrictions.', e);
+          return undefined;
+        });
+    }
+    if (mods) {
       if (mods.includes(author.name)) {
         console.log(`Skipped ${comment.id} by moderator u/${author.name}`);
         return;
@@ -97,9 +103,8 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
  * @param context A TriggerContext object
  */
 export async function onAppChanged(_event: AppInstall | AppUpgrade, context: TriggerContext) {
-  await clearModerators(context)
-    .then(() => console.log("Cleared cached modlist on app change"));
   await refreshModerators(context);
+  console.log("Refreshed cached modlist on app change");
 }
 
 /**
@@ -114,17 +119,20 @@ export async function onModAction(event: ModAction, context: TriggerContext) {
   }
   const actions = ['acceptmoderatorinvite', 'addmoderator', 'removemoderator', 'reordermoderators'];
   if (actions.includes(action)) {
-    await clearModerators(context)
-      .then(() => console.log(`Cleared cached modlist on ${action}`));
     await refreshModerators(context);
+    console.log(`Refreshed cached modlist on ${action}`);
   }
 }
 
 /**
  * Refresh cached modlist
+ *
+ * The cache is only overwritten after a successful fetch, so a failed refresh
+ * keeps the previous modlist
  * @param context A TriggerContext object
+ * @returns A promise that resolves to an array of moderator usernames
  */
-async function refreshModerators(context: TriggerContext) {
+async function refreshModerators(context: TriggerContext): Promise<string[]> {
   const subreddit = await context.reddit.getCurrentSubreddit();
   const moderators: string[] = [];
   try {
@@ -138,4 +146,5 @@ async function refreshModerators(context: TriggerContext) {
     throw new Error(`Fetched modlist for r/${subreddit.name} is empty, skipping cache update`);
   }
   await storeModerators(moderators, context);
+  return moderators;
 }
