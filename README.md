@@ -4,7 +4,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 [https://developers.reddit.com/apps/only-flairs](https://developers.reddit.com/apps/only-flairs)
 
-![Only Flairs](https://github.com/user-attachments/assets/468a304b-b63a-4998-9475-43b42b3feb50)
+![Only Flairs](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/banner.png)
 
 ## Features
 
