@@ -1,7 +1,8 @@
-import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONArray, JSONObject, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, Post, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
+import { parseFormValues } from "./parse.js";
 
 // Define expiration durations (in seconds) and associated labels
 const DURATIONS: Record<number, string> = {
@@ -65,7 +66,7 @@ export const form = Devvit.createForm((data) => {
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
         type: "boolean",
-        defaultValue: settings ? settings.is_enabled : false,
+        defaultValue: !settings || settings.is_enabled,
       },
       {
         name: "flairs",
@@ -89,7 +90,7 @@ export const form = Devvit.createForm((data) => {
         label: "Exclude Moderators",
         helpText: "Exclude subreddit moderators from comment restrictions",
         type: "boolean",
-        defaultValue: settings ? settings.exclude_mods : true,
+        defaultValue: !settings || settings.exclude_mods,
       },
       {
         name: "removal_reason",
@@ -129,34 +130,13 @@ export const form = Devvit.createForm((data) => {
  */
 async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
 
-  event.values.flairs = event.values.flairs as JSONArray;
-  event.values.removal_reason = event.values.removal_reason as JSONArray;
-
-  if (!event.values.flairs || event.values.flairs.length == 0) {
-    event.values.flairs = [ "any" ];
-    console.warn("No flair selected, defaulting to 'any'");
-  }
-
-  if (event.values.flairs.length > 1 && event.values.flairs.includes("any")) {
-    event.values.flairs = [ "any" ];
-    console.warn("Flairs selected in addition to 'any', forcing 'any'");
-  }
-
-  if (!event.values.removal_reason || event.values.removal_reason.length == 0) {
-    event.values.removal_reason = [ "none" ];
-    console.warn("No removal reason selected, defaulting to 'none'");
-  }
-
-  // Parse form values
-  event.values.removal_reason = event.values.removal_reason[0];
-  event.values.expiration = Number(event.values.expiration);
-
-  const settings = event.values as PostSettings;
+  // Log raw submission for diagnosing form issues
+  console.log(`Form values on ${context.postId}: ${JSON.stringify(event.values)}`);
 
   if (!context.postId) {
     throw new Error("postId missing from context object");
   }
-  settings.post_id = context.postId;
+  const settings = parseFormValues(event.values, context.postId);
 
   // Load previous post settings
   // Could pass through form data from showPostRestrictForm() handler but starts getting messy
@@ -181,7 +161,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     }
 
     // Populate placeholder in sticky comment
-    const sticky_comment_text = settings.sticky_comment_text.replace("%%flair%%", user_flairs_text);
+    const sticky_comment_text = settings.sticky_comment_text.replace(/%%flair%%/g, () => user_flairs_text);
 
     // Format removal reason for display
     let removal_reason_text = "None";
@@ -204,9 +184,9 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
         console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
 
-        // Send ModMail reply
-        await context.reddit.modMail.reply({
-          conversationId: settings_old.conversation_id!,
+        // Send ModMail
+        settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
+          subject: `Flaired User Only Mode Edited`,
           body: `u/${mod.username} has edited flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Updated Configuration**\n\n` +
@@ -219,31 +199,35 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
         });
 
         // Sticky Comment
-        if (settings.sticky_comment_id) {
-          if (settings.sticky_comment_text) {
-            if (
-              (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
-              (settings.sticky_comment_text.includes("%%flair%%") && settings.flairs != settings_old.flairs)
-            ) {
+        try {
+          if (settings.sticky_comment_id) {
+            if (settings.sticky_comment_text) {
+              if (
+                (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
+                (settings.sticky_comment_text.includes("%%flair%%") && JSON.stringify(settings.flairs) != JSON.stringify(settings_old.flairs))
+              ) {
+                const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+                await comment.edit({
+                  text: sticky_comment_text,
+                });
+              }
+            } else {
               const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-              await comment.edit({
-                text: sticky_comment_text,
-              });
+              await comment.delete();
+              settings.sticky_comment_id = undefined;
             }
           } else {
-            const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-            await comment.delete();
-            settings.sticky_comment_id = undefined;
+            if (settings.sticky_comment_text) {
+              const comment = await context.reddit.submitComment({
+                id: settings.post_id,
+                text: sticky_comment_text,
+              });
+              await comment.distinguish(true); // Distinguish + Sticky
+              settings.sticky_comment_id = comment.id;
+            }
           }
-        } else {
-          if (settings.sticky_comment_text) {
-            const comment = await context.reddit.submitComment({
-              id: settings.post_id,
-              text: sticky_comment_text,
-            });
-            await comment.distinguish(true); // Distinguish + Sticky
-            settings.sticky_comment_id = comment.id;
-          }
+        } catch (e) {
+          console.error(`Error updating sticky comment on ${settings.post_id}`, e);
         }
 
         await storePostSettings(settings, context);
@@ -261,30 +245,31 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      const conversationId = await context.reddit.modMail
-        .createModInboxConversation({
-          subredditId: post.subredditId,
-          subject: `Flaired User Only Mode Enabled`,
-          bodyMarkdown: `u/${mod.username} has enabled flaired user only mode on ` +
-                        `[${post.title}](${post.permalink}).\n\n` + 
-                        `**Configuration**\n\n` +
-                        `* **User Flairs:** ${user_flairs_text}\n\n` +
-                        `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
-                        `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                        `* **Removal Reason:** ${removal_reason_text}\n\n` +
-                        `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                        `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
-        });
-      settings.conversation_id = conversationId; // Store for sending follow-up messages
+      settings.conversation_id = await notifyMods(context, post, undefined, {
+        subject: `Flaired User Only Mode Enabled`,
+        body: `u/${mod.username} has enabled flaired user only mode on ` +
+              `[${post.title}](${post.permalink}).\n\n` + 
+              `**Configuration**\n\n` +
+              `* **User Flairs:** ${user_flairs_text}\n\n` +
+              `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+              `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+              `* **Removal Reason:** ${removal_reason_text}\n\n` +
+              `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+              `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
+      });
 
       // Sticky Comment
       if (settings.sticky_comment_text) {
-        const comment = await context.reddit.submitComment({
-          id: settings.post_id,
-          text: sticky_comment_text,
-        });
-        await comment.distinguish(true); // Distinguish + Sticky
-        settings.sticky_comment_id = comment.id;
+        try {
+          const comment = await context.reddit.submitComment({
+            id: settings.post_id,
+            text: sticky_comment_text,
+          });
+          await comment.distinguish(true); // Distinguish + Sticky
+          settings.sticky_comment_id = comment.id;
+        } catch (e) {
+          console.error(`Error posting sticky comment on ${settings.post_id}`, e);
+        }
       }
 
       await storePostSettings(settings, context);
@@ -297,17 +282,21 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     if (settings_old) { // Disable
       console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
 
-      // Send ModMail reply
-      await context.reddit.modMail.reply({
-        conversationId: settings_old.conversation_id!,
+      // Send ModMail
+      await notifyMods(context, post, settings_old.conversation_id, {
+        subject: `Flaired User Only Mode Disabled`,
         body: `u/${mod.username} has disabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).`,
       });
 
       // Delete Comment
       if (settings_old.sticky_comment_id) {
-        const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
-        await comment.delete();
+        try {
+          const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
+          await comment.delete();
+        } catch (e) {
+          console.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
+        }
       }
 
       await clearPostSettings(settings.post_id, context);
@@ -321,6 +310,49 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
         appearance: "neutral",
       });
     }
+  }
+}
+
+/**
+ * Notify moderators via ModMail without letting failures block the caller
+ *
+ * Replies to an existing conversation when possible using an internal mod note.
+ * If replying fails, or if starting a new notification, uses createModNotification
+ * so the conversation appears in the Modmail Notifications tab.
+ * @param context A Context object
+ * @param post The restricted post
+ * @param conversation_id ModMail conversation ID to reply to, if any
+ * @param message Subject and body of the message
+ * @returns The ID of the conversation the message was sent to, or `conversation_id` if sending failed
+ */
+export async function notifyMods(
+  context: Context,
+  post: Post,
+  conversation_id: string | undefined,
+  message: { subject: string, body: string },
+): Promise<string | undefined> {
+  if (conversation_id) {
+    try {
+      await context.reddit.modMail.reply({
+        conversationId: conversation_id,
+        body: message.body,
+        isInternal: true,
+      });
+      return conversation_id;
+    } catch (e) {
+      console.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
+    }
+  }
+
+  try {
+    return await context.reddit.modMail.createModNotification({
+      subredditId: post.subredditId,
+      subject: message.subject,
+      bodyMarkdown: message.body,
+    });
+  } catch (e) {
+    console.error(`Error sending ModMail for ${post.id}`, e);
+    return conversation_id;
   }
 }
 

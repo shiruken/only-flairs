@@ -1,7 +1,13 @@
-import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
+import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
-import { clearModerators, getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { AuthorFlair, hasAllowedFlair } from "./flair.js";
+import { getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { PostSettings } from "./types.js";
+
+// Comment removal retry behavior
+const REMOVE_ATTEMPTS = 2;
+const REMOVE_RETRY_DELAY_MS = 1000;
 
 /**
  * Shows form to adjust post restriction settings
@@ -40,7 +46,7 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   // Ignore comments from app
-  if (author.name == "only-flairs") {
+  if (author.name == context.appSlug) {
     return;
   }
 
@@ -56,10 +62,16 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
   // If enabled, exclude subreddit moderators
   if (settings.exclude_mods) {
-    const mods = await getModerators(context);
+    let mods = await getModerators(context);
     if (!mods) {
-      console.error('Cached modlist is empty. Unable to exclude moderators from commenting restrictions.');
-    } else {
+      console.warn('Cached modlist is empty, refreshing');
+      mods = await refreshModerators(context)
+        .catch((e) => {
+          console.error('Unable to refresh modlist. Unable to exclude moderators from commenting restrictions.', e);
+          return undefined;
+        });
+    }
+    if (mods) {
       if (mods.includes(author.name)) {
         console.log(`Skipped ${comment.id} by moderator u/${author.name}`);
         return;
@@ -67,28 +79,52 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     }
   }
 
-  if (!author.flair) {
-    console.warn(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
-  }
-
-  if (
-    !author.flair ||
-    (author.flair.text == "" && author.flair.templateId == "") ||
-    (!settings.flairs.includes("any") && !settings.flairs.includes(author.flair.templateId))
-  ) {
+  let flair: AuthorFlair | undefined = author.flair;
+  if (!flair) {
+    // Event data sometimes omits flair, so look it up before removing
+    console.warn(`Author flair object missing from event data on ${comment.id}. Checking comment author flair.`);
     const commentAPI = await context.reddit.getCommentById(comment.id);
-    await commentAPI
-      .remove()
-      .then(() => console.log(`Removed ${comment.id} by u/${author.name}`))
-      .catch((e) => console.error(`Error removing ${comment.id} by u/${author.name}`, e));
-
-    await commentAPI
-      .addRemovalNote({
-        reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
-        modNote: `Commenting restricted to flaired users on ${comment.postId}`,
-      })
-      .catch((e) => console.error(`Error adding removal note to ${comment.id} by u/${author.name}`, e));
+    flair = commentAPI.authorFlair;
   }
+
+  if (!hasAllowedFlair(flair, settings.flairs)) {
+    await removeComment(comment.id, author.name, settings, context);
+  }
+}
+
+/**
+ * Remove a comment and add a removal note, retrying the removal once
+ * @param comment_id A Reddit comment ID (including `t1_` prefix)
+ * @param author_name Username of the comment author
+ * @param settings A {@link PostSettings} object for the comment's post
+ * @param context A TriggerContext object
+ */
+async function removeComment(comment_id: string, author_name: string, settings: PostSettings, context: TriggerContext): Promise<void> {
+  let commentAPI: Comment | undefined;
+  for (let attempt = 1; attempt <= REMOVE_ATTEMPTS; attempt++) {
+    try {
+      commentAPI = await context.reddit.getCommentById(comment_id);
+      await commentAPI.remove();
+      console.log(`Removed ${comment_id} by u/${author_name}`);
+      break;
+    } catch (e) {
+      commentAPI = undefined;
+      console.error(`Error removing ${comment_id} by u/${author_name} (attempt ${attempt}/${REMOVE_ATTEMPTS})`, e);
+      if (attempt < REMOVE_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, REMOVE_RETRY_DELAY_MS));
+      }
+    }
+  }
+  if (!commentAPI) {
+    return;
+  }
+
+  await commentAPI
+    .addRemovalNote({
+      reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
+      modNote: `Commenting restricted to flaired users on ${settings.post_id}`,
+    })
+    .catch((e) => console.error(`Error adding removal note to ${comment_id} by u/${author_name}`, e));
 }
 
 /**
@@ -97,9 +133,8 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
  * @param context A TriggerContext object
  */
 export async function onAppChanged(_event: AppInstall | AppUpgrade, context: TriggerContext) {
-  await clearModerators(context)
-    .then(() => console.log("Cleared cached modlist on app change"));
   await refreshModerators(context);
+  console.log("Refreshed cached modlist on app change");
 }
 
 /**
@@ -114,17 +149,20 @@ export async function onModAction(event: ModAction, context: TriggerContext) {
   }
   const actions = ['acceptmoderatorinvite', 'addmoderator', 'removemoderator', 'reordermoderators'];
   if (actions.includes(action)) {
-    await clearModerators(context)
-      .then(() => console.log(`Cleared cached modlist on ${action}`));
     await refreshModerators(context);
+    console.log(`Refreshed cached modlist on ${action}`);
   }
 }
 
 /**
  * Refresh cached modlist
+ *
+ * The cache is only overwritten after a successful fetch, so a failed refresh
+ * keeps the previous modlist
  * @param context A TriggerContext object
+ * @returns A promise that resolves to an array of moderator usernames
  */
-async function refreshModerators(context: TriggerContext) {
+async function refreshModerators(context: TriggerContext): Promise<string[]> {
   const subreddit = await context.reddit.getCurrentSubreddit();
   const moderators: string[] = [];
   try {
@@ -138,4 +176,5 @@ async function refreshModerators(context: TriggerContext) {
     throw new Error(`Fetched modlist for r/${subreddit.name} is empty, skipping cache update`);
   }
   await storeModerators(moderators, context);
+  return moderators;
 }

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "only-flairs",
+  "permissions": {
+    "reddit": true,
+    "redis": true
+  },
+  "blocks": {
+    "entry": "src/main.ts",
+    "triggers": [
+      "onAppInstall",
+      "onAppUpgrade",
+      "onCommentSubmit",
+      "onModAction"
+    ]
+  }
+}
