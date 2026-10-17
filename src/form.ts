@@ -1,4 +1,4 @@
-import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, Post, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
@@ -204,8 +204,8 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
         console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
 
         // Send ModMail reply
-        await context.reddit.modMail.reply({
-          conversationId: settings_old.conversation_id!,
+        settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
+          subject: `Flaired User Only Mode Edited`,
           body: `u/${mod.username} has edited flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
                 `**Updated Configuration**\n\n` +
@@ -218,31 +218,35 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
         });
 
         // Sticky Comment
-        if (settings.sticky_comment_id) {
-          if (settings.sticky_comment_text) {
-            if (
-              (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
-              (settings.sticky_comment_text.includes("%%flair%%") && settings.flairs != settings_old.flairs)
-            ) {
+        try {
+          if (settings.sticky_comment_id) {
+            if (settings.sticky_comment_text) {
+              if (
+                (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
+                (settings.sticky_comment_text.includes("%%flair%%") && settings.flairs != settings_old.flairs)
+              ) {
+                const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+                await comment.edit({
+                  text: sticky_comment_text,
+                });
+              }
+            } else {
               const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-              await comment.edit({
-                text: sticky_comment_text,
-              });
+              await comment.delete();
+              settings.sticky_comment_id = undefined;
             }
           } else {
-            const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-            await comment.delete();
-            settings.sticky_comment_id = undefined;
+            if (settings.sticky_comment_text) {
+              const comment = await context.reddit.submitComment({
+                id: settings.post_id,
+                text: sticky_comment_text,
+              });
+              await comment.distinguish(true); // Distinguish + Sticky
+              settings.sticky_comment_id = comment.id;
+            }
           }
-        } else {
-          if (settings.sticky_comment_text) {
-            const comment = await context.reddit.submitComment({
-              id: settings.post_id,
-              text: sticky_comment_text,
-            });
-            await comment.distinguish(true); // Distinguish + Sticky
-            settings.sticky_comment_id = comment.id;
-          }
+        } catch (e) {
+          console.error(`Error updating sticky comment on ${settings.post_id}`, e);
         }
 
         await storePostSettings(settings, context);
@@ -260,30 +264,32 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      const conversationId = await context.reddit.modMail
-        .createModInboxConversation({
-          subredditId: post.subredditId,
-          subject: `Flaired User Only Mode Enabled`,
-          bodyMarkdown: `u/${mod.username} has enabled flaired user only mode on ` +
-                        `[${post.title}](${post.permalink}).\n\n` + 
-                        `**Configuration**\n\n` +
-                        `* **User Flairs:** ${user_flairs_text}\n\n` +
-                        `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
-                        `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                        `* **Removal Reason:** ${removal_reason_text}\n\n` +
-                        `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                        `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
-        });
-      settings.conversation_id = conversationId; // Store for sending follow-up messages
+      // Store conversation for sending follow-up messages
+      settings.conversation_id = await notifyMods(context, post, undefined, {
+        subject: `Flaired User Only Mode Enabled`,
+        body: `u/${mod.username} has enabled flaired user only mode on ` +
+              `[${post.title}](${post.permalink}).\n\n` + 
+              `**Configuration**\n\n` +
+              `* **User Flairs:** ${user_flairs_text}\n\n` +
+              `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+              `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+              `* **Removal Reason:** ${removal_reason_text}\n\n` +
+              `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+              `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
+      });
 
       // Sticky Comment
       if (settings.sticky_comment_text) {
-        const comment = await context.reddit.submitComment({
-          id: settings.post_id,
-          text: sticky_comment_text,
-        });
-        await comment.distinguish(true); // Distinguish + Sticky
-        settings.sticky_comment_id = comment.id;
+        try {
+          const comment = await context.reddit.submitComment({
+            id: settings.post_id,
+            text: sticky_comment_text,
+          });
+          await comment.distinguish(true); // Distinguish + Sticky
+          settings.sticky_comment_id = comment.id;
+        } catch (e) {
+          console.error(`Error posting sticky comment on ${settings.post_id}`, e);
+        }
       }
 
       await storePostSettings(settings, context);
@@ -297,16 +303,20 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail reply
-      await context.reddit.modMail.reply({
-        conversationId: settings_old.conversation_id!,
+      await notifyMods(context, post, settings_old.conversation_id, {
+        subject: `Flaired User Only Mode Disabled`,
         body: `u/${mod.username} has disabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).`,
       });
 
       // Delete Comment
       if (settings_old.sticky_comment_id) {
-        const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
-        await comment.delete();
+        try {
+          const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
+          await comment.delete();
+        } catch (e) {
+          console.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
+        }
       }
 
       await clearPostSettings(settings.post_id, context);
@@ -320,6 +330,47 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
         appearance: "neutral",
       });
     }
+  }
+}
+
+/**
+ * Notify moderators via ModMail without letting failures block the caller
+ *
+ * Replies to an existing conversation when possible. Reddit rejects replies to
+ * read-only conversations, in which case a new conversation is started.
+ * @param context A Context object
+ * @param post The restricted post
+ * @param conversation_id ModMail conversation ID to reply to, if any
+ * @param message Subject (for new conversations) and body of the message
+ * @returns The ID of the conversation the message was sent to, or
+ *   `conversation_id` if sending failed
+ */
+async function notifyMods(
+  context: Context,
+  post: Post,
+  conversation_id: string | undefined,
+  message: { subject: string, body: string },
+): Promise<string | undefined> {
+  if (conversation_id) {
+    try {
+      await context.reddit.modMail.reply({
+        conversationId: conversation_id,
+        body: message.body,
+      });
+      return conversation_id;
+    } catch (e) {
+      console.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
+    }
+  }
+  try {
+    return await context.reddit.modMail.createModInboxConversation({
+      subredditId: post.subredditId,
+      subject: message.subject,
+      bodyMarkdown: message.body,
+    });
+  } catch (e) {
+    console.error(`Error sending ModMail for ${post.id}`, e);
+    return conversation_id;
   }
 }
 
