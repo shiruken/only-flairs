@@ -40,7 +40,7 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   // Ignore comments from app
-  if (author.name == "only-flairs") {
+  if (author.name == context.appSlug) {
     return;
   }
 
