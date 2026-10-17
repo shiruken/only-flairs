@@ -1,8 +1,13 @@
-import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
+import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { AuthorFlair, hasAllowedFlair } from "./flair.js";
 import { getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { PostSettings } from "./types.js";
+
+// Comment removal retry behavior
+const REMOVE_ATTEMPTS = 2;
+const REMOVE_RETRY_DELAY_MS = 1000;
 
 /**
  * Shows form to adjust post restriction settings
@@ -83,19 +88,43 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   if (!hasAllowedFlair(flair, settings.flairs)) {
-    const commentAPI = await context.reddit.getCommentById(comment.id);
-    await commentAPI
-      .remove()
-      .then(() => console.log(`Removed ${comment.id} by u/${author.name}`))
-      .catch((e) => console.error(`Error removing ${comment.id} by u/${author.name}`, e));
-
-    await commentAPI
-      .addRemovalNote({
-        reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
-        modNote: `Commenting restricted to flaired users on ${comment.postId}`,
-      })
-      .catch((e) => console.error(`Error adding removal note to ${comment.id} by u/${author.name}`, e));
+    await removeComment(comment.id, author.name, settings, context);
   }
+}
+
+/**
+ * Remove a comment and add a removal note, retrying the removal once
+ * @param comment_id A Reddit comment ID (including `t1_` prefix)
+ * @param author_name Username of the comment author
+ * @param settings A {@link PostSettings} object for the comment's post
+ * @param context A TriggerContext object
+ */
+async function removeComment(comment_id: string, author_name: string, settings: PostSettings, context: TriggerContext): Promise<void> {
+  let commentAPI: Comment | undefined;
+  for (let attempt = 1; attempt <= REMOVE_ATTEMPTS; attempt++) {
+    try {
+      commentAPI = await context.reddit.getCommentById(comment_id);
+      await commentAPI.remove();
+      console.log(`Removed ${comment_id} by u/${author_name}`);
+      break;
+    } catch (e) {
+      commentAPI = undefined;
+      console.error(`Error removing ${comment_id} by u/${author_name} (attempt ${attempt}/${REMOVE_ATTEMPTS})`, e);
+      if (attempt < REMOVE_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, REMOVE_RETRY_DELAY_MS));
+      }
+    }
+  }
+  if (!commentAPI) {
+    return;
+  }
+
+  await commentAPI
+    .addRemovalNote({
+      reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
+      modNote: `Commenting restricted to flaired users on ${settings.post_id}`,
+    })
+    .catch((e) => console.error(`Error adding removal note to ${comment_id} by u/${author_name}`, e));
 }
 
 /**
