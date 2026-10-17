@@ -1,6 +1,7 @@
 import { Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
+import { AuthorFlair, hasAllowedFlair } from "./flair.js";
 import { getModerators, getPostSettings, storeModerators } from "./storage.js";
 
 /**
@@ -73,15 +74,15 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     }
   }
 
-  if (!author.flair) {
-    console.warn(`Author flair object missing from event data on ${comment.id}. Will be removed by default.`);
+  let flair: AuthorFlair | undefined = author.flair;
+  if (!flair) {
+    // Event data sometimes omits flair, so look it up before removing
+    console.warn(`Author flair object missing from event data on ${comment.id}. Checking comment author flair.`);
+    const commentAPI = await context.reddit.getCommentById(comment.id);
+    flair = commentAPI.authorFlair;
   }
 
-  if (
-    !author.flair ||
-    (author.flair.text == "" && author.flair.templateId == "") ||
-    (!settings.flairs.includes("any") && !settings.flairs.includes(author.flair.templateId))
-  ) {
+  if (!hasAllowedFlair(flair, settings.flairs)) {
     const commentAPI = await context.reddit.getCommentById(comment.id);
     await commentAPI
       .remove()
