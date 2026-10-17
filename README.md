@@ -38,7 +38,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 ## Notifications: Modmail
 
-A Modmail conversation is created when flaired user only mode is enabled, edited, or disabled on a post. Each change starts a new conversation because Reddit makes app-created conversations read-only.
+A Modmail notification is created when flaired user only mode is enabled on a post. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
 
 ![Screenshot of Modmail Conversation](https://github.com/user-attachments/assets/8f21499f-0efc-499a-ba38-dc0ba0abffcf)
 

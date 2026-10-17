@@ -61,6 +61,21 @@ describe("parseFormValues", () => {
     expect(settings.exclude_mods).toBe(false);
   });
 
+  test("parses native boolean toggle submissions", () => {
+    const booleanSubmission = {
+      is_enabled: true,
+      flairs: [ "any" ],
+      top_level_only: true,
+      exclude_mods: false,
+      removal_reason: [ "none" ],
+      expiration: [ "2592000" ],
+    };
+    const settings = parseFormValues(booleanSubmission, "t3_abc");
+    expect(settings.is_enabled).toBe(true);
+    expect(settings.top_level_only).toBe(true);
+    expect(settings.exclude_mods).toBe(false);
+  });
+
   test("defaults empty flair selection to any", () => {
     expect(parseFormValues({ ...BASE, flairs: [] }, "t3_abc").flairs).toEqual([ "any" ]);
   });

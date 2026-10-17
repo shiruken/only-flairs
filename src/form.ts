@@ -2,7 +2,7 @@ import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, Post, Re
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
-import { DISABLED, ENABLED, NO, parseFormValues, YES } from "./parse.js";
+import { parseFormValues } from "./parse.js";
 
 // Define expiration durations (in seconds) and associated labels
 const DURATIONS: Record<number, string> = {
@@ -56,16 +56,6 @@ export const form = Devvit.createForm((data) => {
     });
   const expiration_default = Object.keys(DURATIONS).slice(-1); // 30 days
 
-  // On/off fields use selects because boolean fields are unreliable on mobile
-  const enable_options: FieldConfig_Selection_Item[] = [
-    { label: "Enabled", value: ENABLED },
-    { label: "Disabled", value: DISABLED },
-  ];
-  const yes_no_options: FieldConfig_Selection_Item[] = [
-    { label: "Yes", value: YES },
-    { label: "No", value: NO },
-  ];
-
   return {
     title: "Restrict to Flaired Users",
     description: "Restrict commenting on this post to only flaired users",
@@ -75,11 +65,8 @@ export const form = Devvit.createForm((data) => {
         name: "is_enabled",
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
-        type: "select",
-        required: true,
-        multiSelect: false,
-        options: enable_options,
-        defaultValue: [ (!settings || settings.is_enabled) ? ENABLED : DISABLED ],
+        type: "boolean",
+        defaultValue: !settings || settings.is_enabled,
       },
       {
         name: "flairs",
@@ -95,21 +82,15 @@ export const form = Devvit.createForm((data) => {
         name: "top_level_only",
         label: "Only Restrict Top-Level Comments",
         helpText: "Allow comment replies from any user regardless of flair",
-        type: "select",
-        required: true,
-        multiSelect: false,
-        options: yes_no_options,
-        defaultValue: [ (settings && settings.top_level_only) ? YES : NO ],
+        type: "boolean",
+        defaultValue: settings ? settings.top_level_only : false,
       },
       {
         name: "exclude_mods",
         label: "Exclude Moderators",
         helpText: "Exclude subreddit moderators from comment restrictions",
-        type: "select",
-        required: true,
-        multiSelect: false,
-        options: yes_no_options,
-        defaultValue: [ (!settings || settings.exclude_mods) ? YES : NO ],
+        type: "boolean",
+        defaultValue: !settings || settings.exclude_mods,
       },
       {
         name: "removal_reason",
@@ -197,13 +178,14 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     if (settings_old) { // Edit
 
       // Propagate to new settings
+      settings.conversation_id = settings_old.conversation_id;
       settings.sticky_comment_id = settings_old.sticky_comment_id;
 
       if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
         console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
 
         // Send ModMail
-        await notifyMods(context, post, {
+        settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
           subject: `Flaired User Only Mode Edited`,
           body: `u/${mod.username} has edited flaired user only mode on ` +
                 `[${post.title}](${post.permalink}).\n\n` + 
@@ -263,7 +245,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      await notifyMods(context, post, {
+      settings.conversation_id = await notifyMods(context, post, undefined, {
         subject: `Flaired User Only Mode Enabled`,
         body: `u/${mod.username} has enabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).\n\n` + 
@@ -301,7 +283,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
       console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
 
       // Send ModMail
-      await notifyMods(context, post, {
+      await notifyMods(context, post, settings_old.conversation_id, {
         subject: `Flaired User Only Mode Disabled`,
         body: `u/${mod.username} has disabled flaired user only mode on ` +
               `[${post.title}](${post.permalink}).`,
@@ -334,21 +316,43 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
 /**
  * Notify moderators via ModMail without letting failures block the caller
  *
- * Starts a new conversation for every message because Reddit makes
- * app-created conversations read-only, so replies are rejected.
+ * Replies to an existing conversation when possible using an internal mod note.
+ * If replying fails, or if starting a new notification, uses createModNotification
+ * so the conversation appears in the Modmail Notifications tab.
  * @param context A Context object
  * @param post The restricted post
+ * @param conversation_id ModMail conversation ID to reply to, if any
  * @param message Subject and body of the message
+ * @returns The ID of the conversation the message was sent to, or `conversation_id` if sending failed
  */
-async function notifyMods(context: Context, post: Post, message: { subject: string, body: string }): Promise<void> {
+export async function notifyMods(
+  context: Context,
+  post: Post,
+  conversation_id: string | undefined,
+  message: { subject: string, body: string },
+): Promise<string | undefined> {
+  if (conversation_id) {
+    try {
+      await context.reddit.modMail.reply({
+        conversationId: conversation_id,
+        body: message.body,
+        isInternal: true,
+      });
+      return conversation_id;
+    } catch (e) {
+      console.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
+    }
+  }
+
   try {
-    await context.reddit.modMail.createModInboxConversation({
+    return await context.reddit.modMail.createModNotification({
       subredditId: post.subredditId,
       subject: message.subject,
       bodyMarkdown: message.body,
     });
   } catch (e) {
     console.error(`Error sending ModMail for ${post.id}`, e);
+    return conversation_id;
   }
 }
 

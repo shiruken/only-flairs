@@ -20,4 +20,6 @@ export type PostSettings = {
   sticky_comment_text: string;
   /** Sticky comment ID */
   sticky_comment_id?: string;
+  /** ModMail conversation ID for use with follow-up messages */
+  conversation_id?: string;
 };
