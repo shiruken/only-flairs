@@ -180,7 +180,7 @@ async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Contex
     }
 
     // Populate placeholder in sticky comment
-    const sticky_comment_text = settings.sticky_comment_text.replace("%%flair%%", user_flairs_text);
+    const sticky_comment_text = settings.sticky_comment_text.replace(/%%flair%%/g, () => user_flairs_text);
 
     // Format removal reason for display
     let removal_reason_text = "None";
