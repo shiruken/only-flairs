@@ -1,7 +1,8 @@
-import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONArray, JSONObject, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
+import { DISABLED, ENABLED, NO, parseFormValues, YES } from "./parse.js";
 
 // Define expiration durations (in seconds) and associated labels
 const DURATIONS: Record<number, string> = {
@@ -55,6 +56,16 @@ export const form = Devvit.createForm((data) => {
     });
   const expiration_default = Object.keys(DURATIONS).slice(-1); // 30 days
 
+  // On/off fields use selects because boolean fields are unreliable on mobile
+  const enable_options: FieldConfig_Selection_Item[] = [
+    { label: "Enabled", value: ENABLED },
+    { label: "Disabled", value: DISABLED },
+  ];
+  const yes_no_options: FieldConfig_Selection_Item[] = [
+    { label: "Yes", value: YES },
+    { label: "No", value: NO },
+  ];
+
   return {
     title: "Restrict to Flaired Users",
     description: "Restrict commenting on this post to only flaired users",
@@ -64,8 +75,11 @@ export const form = Devvit.createForm((data) => {
         name: "is_enabled",
         label: "Enable",
         helpText: "Enable or disable flaired user only mode",
-        type: "boolean",
-        defaultValue: settings ? settings.is_enabled : false,
+        type: "select",
+        required: true,
+        multiSelect: false,
+        options: enable_options,
+        defaultValue: [ (!settings || settings.is_enabled) ? ENABLED : DISABLED ],
       },
       {
         name: "flairs",
@@ -81,15 +95,21 @@ export const form = Devvit.createForm((data) => {
         name: "top_level_only",
         label: "Only Restrict Top-Level Comments",
         helpText: "Allow comment replies from any user regardless of flair",
-        type: "boolean",
-        defaultValue: settings ? settings.top_level_only : false,
+        type: "select",
+        required: true,
+        multiSelect: false,
+        options: yes_no_options,
+        defaultValue: [ (settings && settings.top_level_only) ? YES : NO ],
       },
       {
         name: "exclude_mods",
         label: "Exclude Moderators",
         helpText: "Exclude subreddit moderators from comment restrictions",
-        type: "boolean",
-        defaultValue: settings ? settings.exclude_mods : true,
+        type: "select",
+        required: true,
+        multiSelect: false,
+        options: yes_no_options,
+        defaultValue: [ (!settings || settings.exclude_mods) ? YES : NO ],
       },
       {
         name: "removal_reason",
@@ -129,34 +149,13 @@ export const form = Devvit.createForm((data) => {
  */
 async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
 
-  event.values.flairs = event.values.flairs as JSONArray;
-  event.values.removal_reason = event.values.removal_reason as JSONArray;
-
-  if (!event.values.flairs || event.values.flairs.length == 0) {
-    event.values.flairs = [ "any" ];
-    console.warn("No flair selected, defaulting to 'any'");
-  }
-
-  if (event.values.flairs.length > 1 && event.values.flairs.includes("any")) {
-    event.values.flairs = [ "any" ];
-    console.warn("Flairs selected in addition to 'any', forcing 'any'");
-  }
-
-  if (!event.values.removal_reason || event.values.removal_reason.length == 0) {
-    event.values.removal_reason = [ "none" ];
-    console.warn("No removal reason selected, defaulting to 'none'");
-  }
-
-  // Parse form values
-  event.values.removal_reason = event.values.removal_reason[0];
-  event.values.expiration = Number(event.values.expiration);
-
-  const settings = event.values as PostSettings;
+  // Log raw submission for diagnosing form issues
+  console.log(`Form values on ${context.postId}: ${JSON.stringify(event.values)}`);
 
   if (!context.postId) {
     throw new Error("postId missing from context object");
   }
-  settings.post_id = context.postId;
+  const settings = parseFormValues(event.values, context.postId);
 
   // Load previous post settings
   // Could pass through form data from showPostRestrictForm() handler but starts getting messy
