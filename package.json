@@ -16,6 +16,8 @@
     "dev": "devvit playtest",
     "deploy": "devvit upload",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm test"
   }
 }
