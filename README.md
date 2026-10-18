@@ -60,7 +60,7 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 
 * Sticky comments will be edited or deleted as the configuration on an individual post is modified
 * Manually disabling flaired user only mode will result in the sticky comment being deleted
-* Sticky comments *are not automatically deleted* when the comment restriction expires
+* Sticky comments are automatically deleted when the comment restriction expires
 
 ## Changelog
 
