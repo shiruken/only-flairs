@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createFormConfig, processForm, quoteText } from "./form.js";
+import { createFormConfig, hasSettingsChanged, processForm, quoteText } from "./form.js";
 import type { Context, FormOnSubmitEvent, JSONObject } from "@devvit/public-api";
 import type { PostSettings } from "./types.js";
 
@@ -15,6 +15,74 @@ describe("form", () => {
 
     it("formats multiple lines into blockquoted markdown", () => {
       expect(quoteText("Line 1\nLine 2\nLine 3")).toBe("\n> Line 1\n> Line 2\n> Line 3");
+    });
+  });
+
+  describe("hasSettingsChanged", () => {
+    const baseSettings: PostSettings = {
+      post_id: "t3_post123",
+      is_enabled: true,
+      flairs: ["flair_1", "flair_2"],
+      top_level_only: false,
+      exclude_mods: true,
+      exclude_author: true,
+      expiration: 3600,
+      removal_reason: "none",
+      sticky_comment_text: "Sticky text %%flair%%",
+      op_author_name: "author_user",
+      conversation_id: "conv_123",
+      sticky_comment_id: "t1_sticky999",
+      scheduler_job_id: "job_123",
+      expires_at: 1800000000000,
+    };
+
+    it("returns false when settings are identical", () => {
+      expect(hasSettingsChanged({ ...baseSettings }, { ...baseSettings })).toBe(false);
+    });
+
+    it("returns false when keys have different insertion orders", () => {
+      const reorderedSettings: PostSettings = {
+        post_id: baseSettings.post_id,
+        is_enabled: baseSettings.is_enabled,
+        flairs: [...baseSettings.flairs],
+        top_level_only: baseSettings.top_level_only,
+        exclude_mods: baseSettings.exclude_mods,
+        exclude_author: baseSettings.exclude_author,
+        expiration: baseSettings.expiration,
+        removal_reason: baseSettings.removal_reason,
+        sticky_comment_text: baseSettings.sticky_comment_text,
+        op_author_name: baseSettings.op_author_name,
+        expires_at: baseSettings.expires_at,
+        scheduler_job_id: baseSettings.scheduler_job_id,
+        conversation_id: baseSettings.conversation_id,
+        sticky_comment_id: baseSettings.sticky_comment_id,
+      };
+
+      expect(hasSettingsChanged(reorderedSettings, baseSettings)).toBe(false);
+    });
+
+    it("returns true when a boolean setting differs", () => {
+      expect(hasSettingsChanged({ ...baseSettings, exclude_author: false }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, exclude_mods: false }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, top_level_only: true }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, is_enabled: false }, baseSettings)).toBe(true);
+    });
+
+    it("returns true when a string or number setting differs", () => {
+      expect(hasSettingsChanged({ ...baseSettings, expiration: 7200 }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, removal_reason: "reason_rules" }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, sticky_comment_text: "Changed" }, baseSettings)).toBe(true);
+    });
+
+    it("returns true when flairs array has different length or elements", () => {
+      expect(hasSettingsChanged({ ...baseSettings, flairs: ["flair_1"] }, baseSettings)).toBe(true);
+      expect(hasSettingsChanged({ ...baseSettings, flairs: ["flair_1", "flair_different"] }, baseSettings)).toBe(true);
+    });
+
+    it("returns true when a setting is missing in oldSettings", () => {
+      const legacyOld = { ...baseSettings };
+      delete (legacyOld as any).exclude_author;
+      expect(hasSettingsChanged(baseSettings, legacyOld)).toBe(true);
     });
   });
 

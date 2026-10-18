@@ -223,7 +223,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
       settings.scheduler_job_id = settings_old.scheduler_job_id;
       settings.expires_at = settings_old.expires_at;
 
-      if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
+      if (hasSettingsChanged(settings, settings_old)) { // Has Changes
         logger.form.info(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
 
         // Update expiration schedule if duration changed
@@ -455,4 +455,27 @@ export async function notifyMods(
  */
 export function quoteText(text: string): string {
   return "\n> " + text.replace(/\n/g, "\n> ");
+}
+
+/**
+ * Compare two PostSettings objects to determine if any configuration has changed
+ *
+ * Compares all fields present in newSettings against oldSettings, handling arrays
+ * element-wise to avoid reference mismatch, and ignoring key insertion order.
+ * @param newSettings Newly submitted settings
+ * @param oldSettings Previously stored settings
+ * @returns `true` if any setting value differs, otherwise `false`
+ */
+export function hasSettingsChanged(newSettings: PostSettings, oldSettings: PostSettings): boolean {
+  for (const [key, newVal] of Object.entries(newSettings)) {
+    const oldVal = (oldSettings as Record<string, unknown>)[key];
+    if (Array.isArray(newVal) && Array.isArray(oldVal)) {
+      if (newVal.length !== oldVal.length || !newVal.every((v, i) => v === oldVal[i])) {
+        return true;
+      }
+    } else if (newVal !== oldVal) {
+      return true;
+    }
+  }
+  return false;
 }
