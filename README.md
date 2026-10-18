@@ -27,18 +27,22 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 ## Menu Action: Restrict to Flaired Users
 
-This action appears under the moderator menu on posts in the subreddit. It allows for enabling and configuring flair-based commenting restrictions on the post.
+This action appears under the moderator menu on posts in the subreddit. It allows for enabling and configuring flair-based commenting restrictions on the post. Saving the form enables the restrictions, or updates them if they are already enabled.
 
 ![Screenshot of 'Restrict to Flaired Users' Menu Action](https://github.com/user-attachments/assets/2fc1d886-af64-4b4b-b413-c4a63e86c725) ![Screenshot of 'Restrict to Flaired Users' Form](https://github.com/user-attachments/assets/d9f262fd-1a44-466a-b8de-2946ab729cdf)
 
-* **Enable:** Enable or disable flaired user only mode (make sure to actually enable it!)
 * **User Flairs:** Only allow comments from users with the selected flair(s). The 'Any' option allows any user with flair to comment.
-* **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
-* **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
-* **Exclude Author:** Exclude the post author from comment restrictions
+* **Exempt from Restriction:** Allow comments regardless of flair from the selected groups. Defaults to 'Moderators' and 'Post author'.
+  * **Moderators:** Subreddit moderators
+  * **Post author:** The author of the post (OP)
+  * **Replies to comments:** Replies from any user, so only top-level comments are restricted
 * **Removal Reason:** Subreddit removal reason to use on actioned comments. Select 'None' to specify no removal reason.
 * **Sticky Comment:** Text for the sticky comment on the post. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Defaults to the value defined in the installation settings.
 * **Expiration:** Automatically disable comment restrictions after selected duration
+
+## Menu Action: Remove Flair Restriction
+
+This action appears under the moderator menu on posts in the subreddit. After confirmation, it disables the commenting restrictions on the post, deletes the sticky comment, and reports the change in Modmail.
 
 ## Notifications: Modmail
 

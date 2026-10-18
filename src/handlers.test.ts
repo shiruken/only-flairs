@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { checkComment, onAppChanged, onModAction, showPostRestrictForm } from "./handlers.js";
-import { form } from "./form.js";
+import { checkComment, onAppChanged, onModAction, showPostRestrictForm, showRemoveRestrictionForm } from "./handlers.js";
+import { form, removeForm } from "./form.js";
 import type { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import type { CommentSubmit, ModAction } from "@devvit/protos";
 import type { PostSettings } from "./types.js";
@@ -257,6 +257,49 @@ describe("handlers", () => {
       expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
       expect(mockContext.redis.del).toHaveBeenCalledWith("t3_deleted");
       expect(mockContext.scheduler.cancelJob).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("showRemoveRestrictionForm", () => {
+    const event = { targetId: "t3_post123" } as MenuItemOnPressEvent;
+
+    function setupContext(stored: PostSettings | null) {
+      return {
+        redis: {
+          get: vi.fn().mockResolvedValue(stored ? JSON.stringify(stored) : null),
+        },
+        ui: {
+          showForm: vi.fn(),
+          showToast: vi.fn(),
+        },
+      } as unknown as Context;
+    }
+
+    it("shows confirmation form when the post is restricted", async () => {
+      const mockContext = setupContext({
+        post_id: "t3_post123",
+        is_enabled: true,
+        flairs: ["any"],
+        top_level_only: false,
+        exclude_mods: true,
+        expiration: 0,
+        removal_reason: "none",
+        sticky_comment_text: "",
+      });
+
+      await showRemoveRestrictionForm(event, mockContext);
+
+      expect(mockContext.ui.showForm).toHaveBeenCalledWith(removeForm);
+      expect(mockContext.ui.showToast).not.toHaveBeenCalled();
+    });
+
+    it("shows toast without a form when the post is not restricted", async () => {
+      const mockContext = setupContext(null);
+
+      await showRemoveRestrictionForm(event, mockContext);
+
+      expect(mockContext.ui.showForm).not.toHaveBeenCalled();
+      expect(mockContext.ui.showToast).toHaveBeenCalledWith("Commenting is not restricted on this post");
     });
   });
 

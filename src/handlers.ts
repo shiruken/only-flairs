@@ -1,6 +1,6 @@
 import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
-import { form } from "./form.js";
+import { form, removeForm } from "./form.js";
 import { AuthorFlair, hasAllowedFlair } from "./flair.js";
 import { clearPostSettings, getModerators, getPostSettings, storeModerators } from "./storage.js";
 import { cancelExpiration } from "./scheduler.js";
@@ -51,6 +51,21 @@ export async function showPostRestrictForm(event: MenuItemOnPressEvent, context:
     removal_reasons: removal_reasons,
   };
   context.ui.showForm(form, data);
+}
+
+/**
+ * Shows confirmation form to remove post restrictions
+ * @param event A MenuItemOnPressEvent object
+ * @param context A Context object
+ */
+export async function showRemoveRestrictionForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
+  logger.form.info(`Opening remove restriction form for ${event.targetId}`);
+  const settings = await getPostSettings(event.targetId, context);
+  if (!settings) {
+    context.ui.showToast("Commenting is not restricted on this post");
+    return;
+  }
+  context.ui.showForm(removeForm);
 }
 
 /**
