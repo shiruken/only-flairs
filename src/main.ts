@@ -1,9 +1,11 @@
 import { Devvit } from "@devvit/public-api";
 import { settings } from "./settings.js";
 import { checkComment, onAppChanged, onModAction, showPostRestrictForm } from "./handlers.js";
+import { EXPIRE_JOB_NAME, onExpireRestrictions } from "./scheduler.js";
 
 Devvit.configure({
   redditAPI: true,
+  redis: true,
 });
 
 Devvit.addSettings(settings);
@@ -33,6 +35,12 @@ Devvit.addTrigger({
 Devvit.addTrigger({
   event: 'ModAction',
   onEvent: onModAction,
+});
+
+// Expire commenting restrictions on schedule
+Devvit.addSchedulerJob({
+  name: EXPIRE_JOB_NAME,
+  onRun: onExpireRestrictions,
 });
 
 export default Devvit;

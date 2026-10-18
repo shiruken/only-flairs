@@ -1,5 +1,6 @@
 import type { JSONObject } from "@devvit/public-api";
 import type { PostSettings } from "./types.js";
+import { logger } from "./logger.js";
 
 /** Option values for on/off select fields */
 export const ENABLED = "enabled";
@@ -36,17 +37,18 @@ export function parseFormValues(values: JSONObject, post_id: string): PostSettin
   let flairs = Array.isArray(values.flairs) ? values.flairs.map(String) : [];
   if (flairs.length == 0) {
     flairs = [ "any" ];
-    console.warn("No flair selected, defaulting to 'any'");
+    logger.form.warn("No flair selected, defaulting to 'any'");
   }
   if (flairs.length > 1 && flairs.includes("any")) {
     flairs = [ "any" ];
-    console.warn("Flairs selected in addition to 'any', forcing 'any'");
+    logger.form.warn("Flairs selected in addition to 'any', forcing 'any'");
   }
+  flairs.sort();
 
   const removal_reasons = Array.isArray(values.removal_reason) ? values.removal_reason.map(String) : [];
   if (removal_reasons.length == 0) {
     removal_reasons.push("none");
-    console.warn("No removal reason selected, defaulting to 'none'");
+    logger.form.warn("No removal reason selected, defaulting to 'none'");
   }
 
   const expiration = Array.isArray(values.expiration) ? values.expiration[0] : values.expiration;

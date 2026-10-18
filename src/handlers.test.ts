@@ -92,6 +92,43 @@ describe("handlers", () => {
         removal_reasons: [],
       });
     });
+
+    it("treats expired post settings as undefined when opening form", async () => {
+      const showForm = vi.fn();
+      const expiredSettings: PostSettings = {
+        ...mockPostSettings,
+        expires_at: Date.now() - 60000, // Expired 1 minute ago
+      };
+      const mockContext = {
+        reddit: {
+          getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
+          getUserFlairTemplates: vi.fn().mockResolvedValue([]),
+          getSubredditRemovalReasons: vi.fn().mockResolvedValue([]),
+        },
+        settings: {
+          get: vi.fn().mockResolvedValue(undefined),
+        },
+        redis: {
+          get: vi.fn().mockResolvedValue(JSON.stringify(expiredSettings)),
+        },
+        ui: {
+          showForm,
+        },
+      } as unknown as Context;
+
+      const event = {
+        targetId: "t3_post123",
+      } as MenuItemOnPressEvent;
+
+      await showPostRestrictForm(event, mockContext);
+
+      expect(showForm).toHaveBeenCalledWith(form, {
+        settings: "",
+        sticky_comment_text_default: "",
+        flairs: "[]",
+        removal_reasons: [],
+      });
+    });
   });
 
   describe("checkComment", () => {
@@ -143,6 +180,7 @@ describe("handlers", () => {
           set: vi.fn().mockImplementation(async (key: string, val: string) => {
             redisStore[key] = val;
           }),
+          expire: vi.fn().mockResolvedValue(1),
         },
         reddit: {
           getCommentById: vi.fn().mockResolvedValue(mockCommentAPI),
@@ -219,6 +257,22 @@ describe("handlers", () => {
       expect(remove).not.toHaveBeenCalled();
     });
 
+    it("skips comments when restrictions have expired (expires_at has passed)", async () => {
+      const settings: PostSettings = {
+        ...baseSettings,
+        expires_at: Date.now() - 5000,
+      };
+      const { mockContext, remove } = setupCommentContext({ settings });
+      const event = {
+        comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+        author: { name: "regular_user", flair: { text: "No Flair", templateId: "none" } },
+      } as CommentSubmit;
+
+      await checkComment(event, mockContext);
+
+      expect(remove).not.toHaveBeenCalled();
+    });
+
     it("does not skip top-level comments when top_level_only is true", async () => {
       const settings: PostSettings = {
         ...baseSettings,
@@ -240,6 +294,21 @@ describe("handlers", () => {
         const { mockContext, remove } = setupCommentContext({
           settings: baseSettings,
           cachedMods: "mod_user,head_mod",
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "mod_user", flair: undefined },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("skips comments from moderators with case-insensitive username matching", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          cachedMods: "Head_Mod,Mod_User",
         });
         const event = {
           comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
@@ -328,6 +397,22 @@ describe("handlers", () => {
         const event = {
           comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
           author: { name: "regular_user", flair: undefined },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("fetches comment from API when author flair has empty text and templateId", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: { templateId: "flair_allowed", text: "Allowed" },
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "regular_user", flair: { text: "", templateId: "" } },
         } as CommentSubmit;
 
         await checkComment(event, mockContext);
@@ -458,8 +543,9 @@ describe("handlers", () => {
   describe("onAppChanged", () => {
     it("refreshes moderators and stores them in Redis on app install or upgrade", async () => {
       const set = vi.fn().mockResolvedValue("OK");
+      const expire = vi.fn().mockResolvedValue(1);
       const mockContext = {
-        redis: { set },
+        redis: { set, expire },
         reddit: {
           getCurrentSubreddit: vi.fn().mockResolvedValue({
             name: "testsubreddit",
@@ -476,6 +562,7 @@ describe("handlers", () => {
       await onAppChanged({} as any, mockContext);
 
       expect(set).toHaveBeenCalledWith("$mods", "mod_alpha,mod_beta");
+      expect(expire).toHaveBeenCalledWith("$mods", expect.any(Number));
     });
 
     it("throws error if fetching modlist fails", async () => {
@@ -532,8 +619,9 @@ describe("handlers", () => {
       "reordermoderators",
     ])("refreshes moderators on mod action '%s'", async (action) => {
       const set = vi.fn().mockResolvedValue("OK");
+      const expire = vi.fn().mockResolvedValue(1);
       const mockContext = {
-        redis: { set },
+        redis: { set, expire },
         reddit: {
           getCurrentSubreddit: vi.fn().mockResolvedValue({
             name: "testsubreddit",
@@ -549,6 +637,7 @@ describe("handlers", () => {
       await onModAction({ action } as ModAction, mockContext);
 
       expect(set).toHaveBeenCalledWith("$mods", "active_mod");
+      expect(expire).toHaveBeenCalledWith("$mods", expect.any(Number));
     });
 
     it("ignores unrelated mod actions", async () => {

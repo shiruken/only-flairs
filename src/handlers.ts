@@ -4,6 +4,7 @@ import { form } from "./form.js";
 import { AuthorFlair, hasAllowedFlair } from "./flair.js";
 import { getModerators, getPostSettings, storeModerators } from "./storage.js";
 import { PostSettings } from "./types.js";
+import { logger } from "./logger.js";
 
 // Comment removal retry behavior
 const REMOVE_ATTEMPTS = 2;
@@ -15,11 +16,20 @@ const REMOVE_RETRY_DELAY_MS = 1000;
  * @param context A Context object
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
-  const subreddit = await context.reddit.getCurrentSubredditName();
-  const settings = await getPostSettings(event.targetId, context); // Current settings for post
-  const sticky_comment_text_default = await context.settings.get<string>("sticky_comment_text_default");
-  const flairs = await context.reddit.getUserFlairTemplates(subreddit);
-  const removal_reasons = await context.reddit.getSubredditRemovalReasons(subreddit);
+  logger.form.info(`Opening restriction settings form for ${event.targetId}`);
+  const [subreddit, rawSettings, sticky_comment_text_default] = await Promise.all([
+    context.reddit.getCurrentSubredditName(),
+    getPostSettings(event.targetId, context), // Current settings for post
+    context.settings.get<string>("sticky_comment_text_default"),
+  ]);
+  const settings =
+    rawSettings?.expires_at && Date.now() >= rawSettings.expires_at
+      ? undefined
+      : rawSettings;
+  const [flairs, removal_reasons] = await Promise.all([
+    context.reddit.getUserFlairTemplates(subreddit),
+    context.reddit.getSubredditRemovalReasons(subreddit),
+  ]);
   const data = {
     settings: settings ?? '',
     sticky_comment_text_default: sticky_comment_text_default ?? '',
@@ -47,16 +57,25 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
   // Ignore comments from app
   if (author.name == context.appSlug) {
+    logger.comment.debug(`Skipped ${comment.id}: author is app (${author.name})`);
     return;
   }
 
   const settings = await getPostSettings(comment.postId, context);
   if (!settings) {
+    logger.comment.debug(`Skipped ${comment.id}: post ${comment.postId} is not restricted`);
+    return;
+  }
+
+  // If restrictions have expired, allow commenting
+  if (settings.expires_at && Date.now() >= settings.expires_at) {
+    logger.comment.info(`Skipped ${comment.id} on ${comment.postId}: restrictions expired at ${new Date(settings.expires_at).toISOString()}`);
     return;
   }
 
   // If enabled, exclude comment replies
   if (settings.top_level_only && comment.parentId != comment.postId) {
+    logger.comment.debug(`Skipped ${comment.id} by u/${author.name}: comment reply excluded by top_level_only on ${comment.postId}`);
     return;
   }
 
@@ -64,31 +83,35 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   if (settings.exclude_mods) {
     let mods = await getModerators(context);
     if (!mods) {
-      console.warn('Cached modlist is empty, refreshing');
+      logger.modlist.warn('Cached modlist is empty, refreshing');
       mods = await refreshModerators(context)
         .catch((e) => {
-          console.error('Unable to refresh modlist. Unable to exclude moderators from commenting restrictions.', e);
+          logger.modlist.error('Unable to refresh modlist. Unable to exclude moderators from commenting restrictions.', e);
           return undefined;
         });
     }
     if (mods) {
-      if (mods.includes(author.name)) {
-        console.log(`Skipped ${comment.id} by moderator u/${author.name}`);
+      if (mods.some((m) => m.toLowerCase() === author.name.toLowerCase())) {
+        logger.comment.info(`Skipped ${comment.id} by moderator u/${author.name} on ${comment.postId}`);
         return;
       }
     }
   }
 
   let flair: AuthorFlair | undefined = author.flair;
-  if (!flair) {
-    // Event data sometimes omits flair, so look it up before removing
-    console.warn(`Author flair object missing from event data on ${comment.id}. Checking comment author flair.`);
-    const commentAPI = await context.reddit.getCommentById(comment.id);
+  let commentAPI: Comment | undefined;
+  if (!flair || (!flair.text && !flair.templateId)) {
+    // Event data usually omits flair, so fetch comment via API to inspect authorFlair
+    logger.comment.debug(`Author flair missing from event payload on ${comment.id}. Checking via API.`);
+    commentAPI = await context.reddit.getCommentById(comment.id);
     flair = commentAPI.authorFlair;
   }
 
   if (!hasAllowedFlair(flair, settings.flairs)) {
-    await removeComment(comment.id, author.name, settings, context);
+    logger.comment.info(`Removing ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair)`);
+    await removeComment(comment.id, author.name, settings, context, commentAPI);
+  } else {
+    logger.comment.info(`Allowed ${comment.id} by u/${author.name} on ${comment.postId} (matched flair)`);
   }
 }
 
@@ -98,18 +121,27 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
  * @param author_name Username of the comment author
  * @param settings A {@link PostSettings} object for the comment's post
  * @param context A TriggerContext object
+ * @param existingComment Optional pre-fetched {@link Comment} object to reuse
  */
-async function removeComment(comment_id: string, author_name: string, settings: PostSettings, context: TriggerContext): Promise<void> {
-  let commentAPI: Comment | undefined;
+async function removeComment(
+  comment_id: string,
+  author_name: string,
+  settings: PostSettings,
+  context: TriggerContext,
+  existingComment?: Comment
+): Promise<void> {
+  let commentAPI: Comment | undefined = existingComment;
   for (let attempt = 1; attempt <= REMOVE_ATTEMPTS; attempt++) {
     try {
-      commentAPI = await context.reddit.getCommentById(comment_id);
+      if (!commentAPI) {
+        commentAPI = await context.reddit.getCommentById(comment_id);
+      }
       await commentAPI.remove();
-      console.log(`Removed ${comment_id} by u/${author_name}`);
+      logger.comment.info(`Removed ${comment_id} by u/${author_name}`);
       break;
     } catch (e) {
       commentAPI = undefined;
-      console.error(`Error removing ${comment_id} by u/${author_name} (attempt ${attempt}/${REMOVE_ATTEMPTS})`, e);
+      logger.comment.error(`Error removing ${comment_id} by u/${author_name} (attempt ${attempt}/${REMOVE_ATTEMPTS})`, e);
       if (attempt < REMOVE_ATTEMPTS) {
         await new Promise((resolve) => setTimeout(resolve, REMOVE_RETRY_DELAY_MS));
       }
@@ -124,7 +156,7 @@ async function removeComment(comment_id: string, author_name: string, settings: 
       reasonId: settings.removal_reason != "none" ? settings.removal_reason : "",
       modNote: `Commenting restricted to flaired users on ${settings.post_id}`,
     })
-    .catch((e) => console.error(`Error adding removal note to ${comment_id} by u/${author_name}`, e));
+    .catch((e) => logger.comment.error(`Error adding removal note to ${comment_id} by u/${author_name}`, e));
 }
 
 /**
@@ -134,7 +166,7 @@ async function removeComment(comment_id: string, author_name: string, settings: 
  */
 export async function onAppChanged(_event: AppInstall | AppUpgrade, context: TriggerContext) {
   await refreshModerators(context);
-  console.log("Refreshed cached modlist on app change");
+  logger.modlist.info("Refreshed cached modlist on app change");
 }
 
 /**
@@ -150,7 +182,7 @@ export async function onModAction(event: ModAction, context: TriggerContext) {
   const actions = ['acceptmoderatorinvite', 'addmoderator', 'removemoderator', 'reordermoderators'];
   if (actions.includes(action)) {
     await refreshModerators(context);
-    console.log(`Refreshed cached modlist on ${action}`);
+    logger.modlist.info(`Refreshed cached modlist on ${action}`);
   }
 }
 

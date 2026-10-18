@@ -120,6 +120,15 @@ describe("parseFormValues", () => {
     expect(settings.expiration).toBe(86400);
   });
 
+  test("sorts flairs alphabetically for deterministic order", () => {
+    const values = {
+      ...BASE,
+      flairs: ["flair_z", "flair_a", "flair_m"],
+    };
+    const settings = parseFormValues(values, "t3_abc");
+    expect(settings.flairs).toEqual(["flair_a", "flair_m", "flair_z"]);
+  });
+
   test("produces identical JSON regardless of submitted key order", () => {
     // Change detection in processForm compares JSON strings
     const reordered = {

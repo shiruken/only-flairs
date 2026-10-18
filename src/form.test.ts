@@ -10,11 +10,11 @@ describe("form", () => {
 
   describe("quoteText", () => {
     it("formats a single line into quoted reddit markdown", () => {
-      expect(quoteText("Hello world")).toBe("\n >Hello world");
+      expect(quoteText("Hello world")).toBe("\n> Hello world");
     });
 
     it("formats multiple lines into blockquoted markdown", () => {
-      expect(quoteText("Line 1\nLine 2\nLine 3")).toBe("\n >Line 1\n> Line 2\n> Line 3");
+      expect(quoteText("Line 1\nLine 2\nLine 3")).toBe("\n> Line 1\n> Line 2\n> Line 3");
     });
   });
 
@@ -98,6 +98,19 @@ describe("form", () => {
       expect(fields.find((f: any) => f.name === "sticky_comment_text")?.defaultValue).toBe("Custom sticky comment");
       expect(fields.find((f: any) => f.name === "expiration")?.defaultValue).toEqual(["3600"]);
     });
+
+    it("handles omitted or undefined flairs and removal_reasons gracefully", () => {
+      const config = createFormConfig({
+        flairs: undefined,
+        removal_reasons: undefined,
+      });
+      expect(config.fields.find((f: any) => f.name === "flairs")?.options).toEqual([
+        { label: "Any", value: "any" },
+      ]);
+      expect(config.fields.find((f: any) => f.name === "removal_reason")?.options).toEqual([
+        { label: "None", value: "none" },
+      ]);
+    });
   });
 
   describe("processForm", () => {
@@ -135,6 +148,10 @@ describe("form", () => {
             delete redisStore[key];
           }),
           expire: vi.fn().mockResolvedValue(1),
+        },
+        scheduler: {
+          runJob: vi.fn().mockResolvedValue("job_scheduled_123"),
+          cancelJob: vi.fn().mockResolvedValue(undefined),
         },
         reddit: {
           getCurrentUser: vi.fn().mockResolvedValue({ username: "mod_colin" }),
@@ -177,6 +194,25 @@ describe("form", () => {
       );
     });
 
+    it("throws error when getCurrentUser returns undefined", async () => {
+      const { mockContext } = setupProcessFormContext();
+      (mockContext.reddit.getCurrentUser as any).mockResolvedValue(undefined);
+
+      const formValues = {
+        is_enabled: true,
+        flairs: ["any"],
+        top_level_only: false,
+        exclude_mods: true,
+        removal_reason: ["none"],
+        sticky_comment_text: "",
+        expiration: ["0"],
+      };
+
+      await expect(
+        processForm({ values: formValues } as FormOnSubmitEvent<JSONObject>, mockContext)
+      ).rejects.toThrow("Unable to get current user");
+    });
+
     describe("enabling restrictions for the first time", () => {
       it("enables flaired user mode, submits sticky comment, sends ModMail and saves to Redis", async () => {
         const { mockContext, showToast, mockComment, redisStore } = setupProcessFormContext();
@@ -211,6 +247,14 @@ describe("form", () => {
         expect(savedSettings.is_enabled).toBe(true);
         expect(savedSettings.sticky_comment_id).toBe("t1_sticky999");
         expect(savedSettings.conversation_id).toBe("conv_modmail_123");
+        expect(savedSettings.scheduler_job_id).toBe("job_scheduled_123");
+        expect(savedSettings.expires_at).toBeGreaterThan(Date.now());
+        expect(mockContext.scheduler.runJob).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: "expire_restrictions",
+            data: { postId: "t3_post123" },
+          })
+        );
 
         expect(showToast).toHaveBeenCalledWith({
           text: "Commenting restricted to flaired users",
@@ -240,6 +284,30 @@ describe("form", () => {
         expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
           expect.objectContaining({
             bodyMarkdown: expect.stringContaining("* **User Flairs:** Any"),
+          })
+        );
+      });
+
+      it("formats removal reason as None if selected reason is not in subreddit reasons list", async () => {
+        const { mockContext } = setupProcessFormContext({
+          removalReasons: [{ id: "other_reason", title: "Other" }],
+        });
+
+        const formValues = {
+          is_enabled: true,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["unknown_reason_id"],
+          sticky_comment_text: "",
+          expiration: ["0"],
+        };
+
+        await processForm({ values: formValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bodyMarkdown: expect.stringContaining("* **Removal Reason:** None"),
           })
         );
       });
@@ -289,6 +357,28 @@ describe("form", () => {
           appearance: "success",
         });
       });
+
+      it("shows neutral toast when saving settings to Redis fails during enable", async () => {
+        const { mockContext, showToast } = setupProcessFormContext();
+        (mockContext.redis.set as any).mockRejectedValue(new Error("Redis disk full"));
+
+        const formValues = {
+          is_enabled: true,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "",
+          expiration: ["0"],
+        };
+
+        await processForm({ values: formValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Failed to save commenting restrictions",
+          appearance: "neutral",
+        });
+      });
     });
 
     describe("editing existing restrictions", () => {
@@ -303,6 +393,8 @@ describe("form", () => {
         sticky_comment_text: "Original sticky text %%flair%%",
         conversation_id: "conv_existing_123",
         sticky_comment_id: "t1_sticky999",
+        scheduler_job_id: "job_old_123",
+        expires_at: 1800000000000,
       };
 
       it("edits sticky comment and sends follow-up ModMail when settings are changed", async () => {
@@ -450,6 +542,149 @@ describe("form", () => {
           appearance: "success",
         });
       });
+
+      it("shows neutral toast when saving settings to Redis fails during edit", async () => {
+        const { mockContext, showToast } = setupProcessFormContext({
+          initialSettings: oldSettings,
+        });
+        (mockContext.redis.set as any).mockRejectedValue(new Error("Redis save failure"));
+
+        const updatedValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: true, // change
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Changed comment text",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Failed to update commenting restrictions",
+          appearance: "neutral",
+        });
+      });
+
+      it("cancels old job and schedules new job when expiration duration changes during edit", async () => {
+        const { mockContext, showToast, redisStore } = setupProcessFormContext({
+          initialSettings: oldSettings,
+        });
+
+        const updatedValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Original sticky text %%flair%%",
+          expiration: ["7200"], // changed
+        };
+
+        await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_old_123");
+        expect(mockContext.scheduler.runJob).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: "expire_restrictions",
+            data: { postId: "t3_post123" },
+          })
+        );
+        const saved = JSON.parse(redisStore["t3_post123"]);
+        expect(saved.expiration).toBe(7200);
+        expect(saved.scheduler_job_id).toBe("job_scheduled_123");
+        expect(saved.expires_at).toBeGreaterThan(Date.now());
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Commenting restrictions updated",
+          appearance: "success",
+        });
+      });
+
+      it("cancels old job and clears scheduler_job_id when expiration is set to 0 during edit", async () => {
+        const { mockContext, showToast, redisStore } = setupProcessFormContext({
+          initialSettings: oldSettings,
+        });
+
+        const updatedValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Original sticky text %%flair%%",
+          expiration: ["0"], // changed to never
+        };
+
+        await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_old_123");
+        expect(mockContext.scheduler.runJob).not.toHaveBeenCalled();
+        const saved = JSON.parse(redisStore["t3_post123"]);
+        expect(saved.expiration).toBe(0);
+        expect(saved.scheduler_job_id).toBeUndefined();
+        expect(saved.expires_at).toBeUndefined();
+      });
+
+      it("schedules new job during edit when oldSettings had no scheduler_job_id", async () => {
+        const settingsWithoutJob: PostSettings = {
+          ...oldSettings,
+          expiration: 0,
+          scheduler_job_id: undefined,
+          expires_at: undefined,
+        };
+        const { mockContext, showToast, redisStore } = setupProcessFormContext({
+          initialSettings: settingsWithoutJob,
+        });
+
+        const updatedValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Original sticky text %%flair%%",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(mockContext.scheduler.cancelJob).not.toHaveBeenCalled();
+        expect(mockContext.scheduler.runJob).toHaveBeenCalled();
+        const saved = JSON.parse(redisStore["t3_post123"]);
+        expect(saved.scheduler_job_id).toBe("job_scheduled_123");
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Commenting restrictions updated",
+          appearance: "success",
+        });
+      });
+
+      it("does nothing with sticky comments during edit when both old and new settings have no sticky comment text", async () => {
+        const settingsWithoutSticky: PostSettings = {
+          ...oldSettings,
+          sticky_comment_id: undefined,
+          sticky_comment_text: "",
+        };
+        const { mockContext, mockComment } = setupProcessFormContext({
+          initialSettings: settingsWithoutSticky,
+        });
+
+        const updatedValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: true, // change so form has changes
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "", // still empty
+          expiration: ["3600"],
+        };
+
+        await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(mockComment.edit).not.toHaveBeenCalled();
+        expect(mockComment.delete).not.toHaveBeenCalled();
+        expect(mockContext.reddit.submitComment).not.toHaveBeenCalled();
+      });
     });
 
     describe("disabling restrictions", () => {
@@ -465,6 +700,7 @@ describe("form", () => {
           sticky_comment_id: "t1_sticky999",
           conversation_id: "conv_existing_123",
           expiration: 3600,
+          scheduler_job_id: "job_to_cancel_123",
         };
 
         const { mockContext, showToast, mockComment, redisStore } = setupProcessFormContext({
@@ -483,6 +719,7 @@ describe("form", () => {
 
         await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
+        expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_to_cancel_123");
         expect(mockComment.delete).toHaveBeenCalled();
         expect(mockContext.reddit.modMail.reply).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -555,6 +792,41 @@ describe("form", () => {
         expect(showToast).toHaveBeenCalledWith({
           text: "Commenting permitted from all users",
           appearance: "success",
+        });
+      });
+
+      it("shows neutral toast when clearing Redis settings fails during disable", async () => {
+        const existingSettings: PostSettings = {
+          post_id: "t3_post123",
+          is_enabled: true,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: "none",
+          sticky_comment_text: "",
+          expiration: 0,
+        };
+
+        const { mockContext, showToast } = setupProcessFormContext({
+          initialSettings: existingSettings,
+        });
+        (mockContext.redis.del as any).mockRejectedValue(new Error("Redis del failure"));
+
+        const disableValues = {
+          is_enabled: false,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "",
+          expiration: ["0"],
+        };
+
+        await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Failed to disable commenting restrictions",
+          appearance: "neutral",
         });
       });
     });

@@ -1,8 +1,10 @@
-import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JSONObject, Post, RemovalReason } from "@devvit/public-api";
+import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JobContext, JSONObject, Post, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
 import { parseFormValues } from "./parse.js";
+import { cancelExpiration, scheduleExpiration } from "./scheduler.js";
+import { logger } from "./logger.js";
 
 // Define expiration durations (in seconds) and associated labels
 const DURATIONS: Record<number, string> = {
@@ -136,26 +138,39 @@ export const form = Devvit.createForm(createFormConfig, processForm);
 export async function processForm(event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
 
   // Log raw submission for diagnosing form issues
-  console.log(`Form values on ${context.postId}: ${JSON.stringify(event.values)}`);
+  logger.form.info(`Form values on ${context.postId}: ${JSON.stringify(event.values)}`);
 
   if (!context.postId) {
     throw new Error("postId missing from context object");
   }
   const settings = parseFormValues(event.values, context.postId);
 
-  // Load previous post settings
-  // Could pass through form data from showPostRestrictForm() handler but starts getting messy
-  const settings_old = await getPostSettings(settings.post_id, context);
+  // Load previous post settings, moderator, and post in parallel
+  const [settings_old, mod, post] = await Promise.all([
+    getPostSettings(settings.post_id, context),
+    context.reddit.getCurrentUser(),
+    context.reddit.getPostById(settings.post_id),
+  ]);
 
-  const mod = (await context.reddit.getCurrentUser())!;
-  const post = await context.reddit.getPostById(settings.post_id);
+  if (!mod) {
+    throw new Error("Unable to get current user");
+  }
 
   if (settings.is_enabled) {
+
+    // Fetch flair templates and removal reasons in parallel if needed
+    const flairsPromise = !settings.flairs.includes("any")
+      ? context.reddit.getUserFlairTemplates(post.subredditName)
+      : Promise.resolve([] as FlairTemplate[]);
+    const reasonsPromise = settings.removal_reason != "none"
+      ? context.reddit.getSubredditRemovalReasons(post.subredditName)
+      : Promise.resolve([] as RemovalReason[]);
+
+    const [flairs, reasons] = await Promise.all([flairsPromise, reasonsPromise]);
 
     // Format flair titles for display
     let user_flairs_text = "Any";
     if (!settings.flairs.includes("any")) {
-      const flairs = await context.reddit.getUserFlairTemplates(post.subredditName);
       const flairs_text: string[] = [];
       for (const flair of flairs as FlairTemplate[]) {
         if (settings.flairs.includes(flair.id)) {
@@ -171,7 +186,6 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
     // Format removal reason for display
     let removal_reason_text = "None";
     if (settings.removal_reason != "none") {
-      const reasons = await context.reddit.getSubredditRemovalReasons(post.subredditName);
       for (const reason of reasons) {
         if (settings.removal_reason == reason.id) {
           removal_reason_text = "`" + reason.title + "`";
@@ -185,9 +199,25 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
       // Propagate to new settings
       settings.conversation_id = settings_old.conversation_id;
       settings.sticky_comment_id = settings_old.sticky_comment_id;
+      settings.scheduler_job_id = settings_old.scheduler_job_id;
+      settings.expires_at = settings_old.expires_at;
 
       if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
-        console.log(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
+        logger.form.info(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
+
+        // Update expiration schedule if duration changed
+        if (settings.expiration !== settings_old.expiration) {
+          if (settings_old.scheduler_job_id) {
+            await cancelExpiration(settings_old.scheduler_job_id, context);
+            settings.scheduler_job_id = undefined;
+          }
+          if (settings.expiration > 0) {
+            settings.expires_at = Date.now() + settings.expiration * 1000;
+            settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
+          } else {
+            settings.expires_at = undefined;
+          }
+        }
 
         // Send ModMail
         settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
@@ -232,22 +262,36 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
             }
           }
         } catch (e) {
-          console.error(`Error updating sticky comment on ${settings.post_id}`, e);
+          logger.form.error(`Error updating sticky comment on ${settings.post_id}`, e);
         }
 
-        await storePostSettings(settings, context);
-        context.ui.showToast({
-          text: "Commenting restrictions updated",
-          appearance: "success",
-        });
+        try {
+          await storePostSettings(settings, context);
+          context.ui.showToast({
+            text: "Commenting restrictions updated",
+            appearance: "success",
+          });
+        } catch {
+          context.ui.showToast({
+            text: "Failed to update commenting restrictions",
+            appearance: "neutral",
+          });
+        }
       } else { // No Change
+        logger.form.info(`u/${mod.username} submitted form on ${settings.post_id} with no changes`);
         context.ui.showToast({
           text: "No changes to commenting restrictions",
           appearance: "neutral",
         });
       }
     } else { // Enable
-      console.log(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
+      logger.form.info(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
+
+      // Schedule expiration job if duration is configured
+      if (settings.expiration > 0) {
+        settings.expires_at = Date.now() + settings.expiration * 1000;
+        settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
+      }
 
       // Send ModMail
       settings.conversation_id = await notifyMods(context, post, undefined, {
@@ -273,19 +317,31 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
           await comment.distinguish(true); // Distinguish + Sticky
           settings.sticky_comment_id = comment.id;
         } catch (e) {
-          console.error(`Error posting sticky comment on ${settings.post_id}`, e);
+          logger.form.error(`Error posting sticky comment on ${settings.post_id}`, e);
         }
       }
 
-      await storePostSettings(settings, context);
-      context.ui.showToast({
-        text: "Commenting restricted to flaired users",
-        appearance: "success",
-      });
+      try {
+        await storePostSettings(settings, context);
+        context.ui.showToast({
+          text: "Commenting restricted to flaired users",
+          appearance: "success",
+        });
+      } catch {
+        context.ui.showToast({
+          text: "Failed to save commenting restrictions",
+          appearance: "neutral",
+        });
+      }
     }
   } else {
     if (settings_old) { // Disable
-      console.log(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
+      logger.form.info(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
+
+      // Cancel scheduled expiration job if active
+      if (settings_old.scheduler_job_id) {
+        await cancelExpiration(settings_old.scheduler_job_id, context);
+      }
 
       // Send ModMail
       await notifyMods(context, post, settings_old.conversation_id, {
@@ -300,16 +356,24 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
           const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
           await comment.delete();
         } catch (e) {
-          console.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
+          logger.form.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
         }
       }
 
-      await clearPostSettings(settings.post_id, context);
-      context.ui.showToast({
-        text: "Commenting permitted from all users",
-        appearance: "success",
-      });  
+      try {
+        await clearPostSettings(settings.post_id, context);
+        context.ui.showToast({
+          text: "Commenting permitted from all users",
+          appearance: "success",
+        });
+      } catch {
+        context.ui.showToast({
+          text: "Failed to disable commenting restrictions",
+          appearance: "neutral",
+        });
+      }
     } else { // Never Enabled
+      logger.form.info(`u/${mod.username} submitted disable on unmonitored post ${settings.post_id}`);
       context.ui.showToast({
         text: "Commenting restriction not applied. Did you forget to enable Flaired Only mode?",
         appearance: "neutral",
@@ -331,7 +395,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
  * @returns The ID of the conversation the message was sent to, or `conversation_id` if sending failed
  */
 export async function notifyMods(
-  context: Context,
+  context: Context | JobContext,
   post: Post,
   conversation_id: string | undefined,
   message: { subject: string, body: string },
@@ -345,7 +409,7 @@ export async function notifyMods(
       });
       return conversation_id;
     } catch (e) {
-      console.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
+      logger.form.warn(`Unable to reply to ModMail conversation ${conversation_id}, starting a new one`, e);
     }
   }
 
@@ -356,7 +420,7 @@ export async function notifyMods(
       bodyMarkdown: message.body,
     });
   } catch (e) {
-    console.error(`Error sending ModMail for ${post.id}`, e);
+    logger.form.error(`Error sending ModMail for ${post.id}`, e);
     return conversation_id;
   }
 }
@@ -367,5 +431,5 @@ export async function notifyMods(
  * @returns A string containing quoted text
  */
 export function quoteText(text: string): string {
-  return "\n >" + text.replace(/\n/g, "\n> ");
+  return "\n> " + text.replace(/\n/g, "\n> ");
 }

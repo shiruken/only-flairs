@@ -22,4 +22,8 @@ export type PostSettings = {
   sticky_comment_id?: string;
   /** ModMail conversation ID for use with follow-up messages */
   conversation_id?: string;
+  /** Scheduled expiration job ID */
+  scheduler_job_id?: string;
+  /** Timestamp (epoch in ms) when restrictions expire */
+  expires_at?: number;
 };

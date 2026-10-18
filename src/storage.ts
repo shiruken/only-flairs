@@ -1,5 +1,15 @@
 import { Context, TriggerContext } from "@devvit/public-api";
 import { PostSettings } from "./types.js";
+import { logger } from "./logger.js";
+
+/** Extra grace period (in seconds) added to Redis TTL so post settings persist for cleanup jobs */
+export const REDIS_EXPIRATION_GRACE_SECONDS = 86400;
+
+/** Fallback TTL (in seconds) for posts with indefinite (0) expiration (~180 days) */
+export const INDEFINITE_POST_TTL_SECONDS = 180 * 24 * 60 * 60;
+
+/** Time-to-live (in seconds) for cached moderator list to self-heal missed webhooks (2 hours) */
+export const MODERATOR_CACHE_TTL_SECONDS = 7200;
 
 /**
  * Write {@link PostSettings} object for a post in Redis
@@ -8,13 +18,16 @@ import { PostSettings } from "./types.js";
  */
 export async function storePostSettings(settings: PostSettings, context: Context): Promise<void> {
   const value = JSON.stringify(settings);
-  await context.redis
-    .set(settings.post_id, value)
-    .catch((e) => console.error(`Error writing ${settings.post_id} to Redis`, e));
-  if (settings.expiration > 0) {
-    await context.redis
-      .expire(settings.post_id, settings.expiration)
-      .catch((e) => console.error(`Error setting expiration (${settings.expiration}) for ${settings.post_id} in Redis`, e));
+  try {
+    await context.redis.set(settings.post_id, value);
+    const ttl =
+      settings.expiration > 0
+        ? settings.expiration + REDIS_EXPIRATION_GRACE_SECONDS
+        : INDEFINITE_POST_TTL_SECONDS;
+    await context.redis.expire(settings.post_id, ttl);
+  } catch (e) {
+    logger.storage.error(`Error writing ${settings.post_id} to Redis`, e);
+    throw e;
   }
 }
 
@@ -35,12 +48,15 @@ export async function getPostSettings(post_id: string, context: Context | Trigge
 /**
  * Removes entry for `post_id` from Redis
  * @param post_id A Reddit post ID (including `t3_` prefix)
- * @param context A Context object
+ * @param context A Context or TriggerContext object
  */
-export async function clearPostSettings(post_id: string, context: Context): Promise<void> {
-  await context.redis
-    .del(post_id)
-    .catch((e) => console.error(`Error deleting ${post_id} in Redis`, e));
+export async function clearPostSettings(post_id: string, context: Context | TriggerContext): Promise<void> {
+  try {
+    await context.redis.del(post_id);
+  } catch (e) {
+    logger.storage.error(`Error deleting ${post_id} in Redis`, e);
+    throw e;
+  }
 }
 
 /**
@@ -61,9 +77,12 @@ export async function getModerators(context: TriggerContext): Promise<string[] |
  * @param moderators Array of moderator usernames
  * @param context A TriggerContext object
  */
-export async function storeModerators(moderators: string[], context: TriggerContext) {
-  await context.redis
-    .set("$mods", moderators.toString())
-    .then(() => console.log(`Wrote ${moderators.length} moderators to Redis`))
-    .catch((e) => console.error('Error writing moderators to Redis', e));
+export async function storeModerators(moderators: string[], context: TriggerContext): Promise<void> {
+  try {
+    await context.redis.set("$mods", moderators.toString());
+    await context.redis.expire("$mods", MODERATOR_CACHE_TTL_SECONDS);
+    logger.modlist.info(`Wrote ${moderators.length} moderators to Redis with ${MODERATOR_CACHE_TTL_SECONDS}s TTL`);
+  } catch (e) {
+    logger.modlist.error("Error writing moderators to Redis", e);
+  }
 }

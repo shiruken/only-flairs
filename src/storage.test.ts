@@ -3,6 +3,9 @@ import {
   clearPostSettings,
   getModerators,
   getPostSettings,
+  INDEFINITE_POST_TTL_SECONDS,
+  MODERATOR_CACHE_TTL_SECONDS,
+  REDIS_EXPIRATION_GRACE_SECONDS,
   storeModerators,
   storePostSettings,
 } from "./storage.js";
@@ -32,12 +35,12 @@ describe("storage", () => {
       await storePostSettings(mockSettings, mockContext);
 
       expect(set).toHaveBeenCalledWith("t3_test123", JSON.stringify(mockSettings));
-      expect(expire).toHaveBeenCalledWith("t3_test123", 3600);
+      expect(expire).toHaveBeenCalledWith("t3_test123", 3600 + REDIS_EXPIRATION_GRACE_SECONDS);
     });
 
-    it("stores settings without setting expiration when expiration is 0", async () => {
+    it("stores settings with fallback INDEFINITE_POST_TTL_SECONDS when expiration is 0", async () => {
       const set = vi.fn().mockResolvedValue("OK");
-      const expire = vi.fn();
+      const expire = vi.fn().mockResolvedValue(1);
       const mockContext = {
         redis: { set, expire },
       } as unknown as Context;
@@ -48,10 +51,10 @@ describe("storage", () => {
         "t3_test123",
         JSON.stringify({ ...mockSettings, expiration: 0 })
       );
-      expect(expire).not.toHaveBeenCalled();
+      expect(expire).toHaveBeenCalledWith("t3_test123", INDEFINITE_POST_TTL_SECONDS);
     });
 
-    it("catches and logs redis errors without throwing", async () => {
+    it("logs and rethrows redis errors", async () => {
       const set = vi.fn().mockRejectedValue(new Error("Redis set error"));
       const expire = vi.fn().mockRejectedValue(new Error("Redis expire error"));
       const mockContext = {
@@ -60,7 +63,7 @@ describe("storage", () => {
 
       await expect(
         storePostSettings(mockSettings, mockContext)
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow("Redis set error");
     });
   });
 
@@ -98,7 +101,7 @@ describe("storage", () => {
       expect(del).toHaveBeenCalledWith("t3_test123");
     });
 
-    it("catches and logs redis del errors without throwing", async () => {
+    it("logs and rethrows redis del errors", async () => {
       const del = vi.fn().mockRejectedValue(new Error("Redis del error"));
       const mockContext = {
         redis: { del },
@@ -106,7 +109,7 @@ describe("storage", () => {
 
       await expect(
         clearPostSettings("t3_test123", mockContext)
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow("Redis del error");
     });
   });
 
@@ -134,20 +137,23 @@ describe("storage", () => {
   });
 
   describe("storeModerators", () => {
-    it("stores comma-separated moderator list in Redis", async () => {
+    it("stores comma-separated moderator list in Redis and sets TTL", async () => {
       const set = vi.fn().mockResolvedValue("OK");
+      const expire = vi.fn().mockResolvedValue(1);
       const mockContext = {
-        redis: { set },
+        redis: { set, expire },
       } as unknown as TriggerContext;
 
       await storeModerators(["mod1", "mod2"], mockContext);
       expect(set).toHaveBeenCalledWith("$mods", "mod1,mod2");
+      expect(expire).toHaveBeenCalledWith("$mods", MODERATOR_CACHE_TTL_SECONDS);
     });
 
     it("catches and logs redis store error without throwing", async () => {
       const set = vi.fn().mockRejectedValue(new Error("Redis store error"));
+      const expire = vi.fn().mockResolvedValue(1);
       const mockContext = {
-        redis: { set },
+        redis: { set, expire },
       } as unknown as TriggerContext;
 
       await expect(
