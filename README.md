@@ -13,6 +13,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 * Automatically removes incoming comments from unflaired users
   * Easily specify which user flairs are allowed to comment
   * Optionally allow replies to top-level comments
+  * Optionally exclude subreddit moderators and post authors
   * Apply subreddit removal reason to actions
 * Customizable sticky comment to inform users about restrictions
 * Automatically disabled after user-selected duration
@@ -68,6 +69,7 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 * v0.6
+  * Add option to exclude post author from comment restrictions
   * Modmail notifications are now routed to the Notifications tab rather than the Inbox
   * Support multiple `%%flair%%` placeholders in sticky comments
   * Improved handling and notifications for expiring comment restrictions
