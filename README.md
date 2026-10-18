@@ -69,6 +69,7 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 * v0.6
   * Modmail notifications are now routed to the Notifications tab rather than the Inbox
   * Support multiple `%%flair%%` placeholders in sticky comments
+  * Improved handling and notifications for expiring comment restrictions
   * Reliability improvements for flair detection and comment removal
 * v0.5
   * Add placeholder text to include list of flairs in sticky comment
