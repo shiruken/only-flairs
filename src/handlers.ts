@@ -2,7 +2,8 @@ import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { AuthorFlair, hasAllowedFlair } from "./flair.js";
-import { getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { clearPostSettings, getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { cancelExpiration } from "./scheduler.js";
 import { PostSettings } from "./types.js";
 import { logger } from "./logger.js";
 
@@ -17,11 +18,24 @@ const REMOVE_RETRY_DELAY_MS = 1000;
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   logger.form.info(`Opening restriction settings form for ${event.targetId}`);
-  const [subreddit, rawSettings, sticky_comment_text_default] = await Promise.all([
+  const [post, subreddit, rawSettings, sticky_comment_text_default] = await Promise.all([
+    context.reddit.getPostById(event.targetId),
     context.reddit.getCurrentSubredditName(),
     getPostSettings(event.targetId, context), // Current settings for post
     context.settings.get<string>("sticky_comment_text_default"),
   ]);
+
+  if (post.authorName === '[deleted]' || post.removedByCategory === 'deleted') {
+    if (rawSettings?.is_enabled) {
+      await clearPostSettings(event.targetId, context);
+      if (rawSettings.scheduler_job_id) {
+        await cancelExpiration(rawSettings.scheduler_job_id, context);
+      }
+    }
+    context.ui.showToast("Cannot configure restrictions on a deleted post");
+    return;
+  }
+
   const settings =
     rawSettings?.expires_at && Date.now() >= rawSettings.expires_at
       ? undefined
@@ -95,6 +109,28 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
         logger.comment.info(`Skipped ${comment.id} by moderator u/${author.name} on ${comment.postId}`);
         return;
       }
+    }
+  }
+
+  // If enabled, exclude post author
+  if (settings.exclude_author) {
+    let opAuthor = settings.op_author_name;
+    if (!opAuthor) {
+      try {
+        const post = await context.reddit.getPostById(comment.postId);
+        opAuthor = post.authorName;
+      } catch (e) {
+        logger.comment.warn(`Unable to fetch post ${comment.postId} to verify author exemption`, e);
+      }
+    }
+    if (
+      opAuthor &&
+      opAuthor !== '[deleted]' &&
+      author.name !== '[deleted]' &&
+      author.name.toLowerCase() === opAuthor.toLowerCase()
+    ) {
+      logger.comment.info(`Skipped ${comment.id} by post author u/${author.name} on ${comment.postId}`);
+      return;
     }
   }
 

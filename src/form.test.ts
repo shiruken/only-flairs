@@ -58,6 +58,7 @@ describe("form", () => {
       ]);
       expect(topLevelField?.defaultValue).toBe(false);
       expect(excludeModsField?.defaultValue).toBe(true);
+      expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
       expect(removalReasonField?.defaultValue).toEqual(["none"]);
       expect(removalReasonField?.options).toEqual([
         { label: "None", value: "none" },
@@ -75,6 +76,7 @@ describe("form", () => {
         flairs: ["flair_1"],
         top_level_only: true,
         exclude_mods: false,
+        exclude_author: false,
         removal_reason: "reason_1",
         sticky_comment_text: "Custom sticky comment",
         expiration: 3600,
@@ -94,9 +96,27 @@ describe("form", () => {
       expect(fields.find((f: any) => f.name === "flairs")?.defaultValue).toEqual(["flair_1"]);
       expect(fields.find((f: any) => f.name === "top_level_only")?.defaultValue).toBe(true);
       expect(fields.find((f: any) => f.name === "exclude_mods")?.defaultValue).toBe(false);
+      expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(false);
       expect(fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["reason_1"]);
       expect(fields.find((f: any) => f.name === "sticky_comment_text")?.defaultValue).toBe("Custom sticky comment");
       expect(fields.find((f: any) => f.name === "expiration")?.defaultValue).toEqual(["3600"]);
+    });
+
+    it("populates exclude_author as true when enabled in existing post settings", () => {
+      const config = createFormConfig({
+        settings: {
+          post_id: "t3_post123",
+          is_enabled: true,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: "none",
+          sticky_comment_text: "",
+          expiration: 0,
+        },
+      });
+      expect(config.fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
     });
 
     it("handles omitted or undefined flairs and removal_reasons gracefully", () => {
@@ -161,6 +181,7 @@ describe("form", () => {
             permalink: "/r/sub/comments/post123",
             subredditName: "testsub",
             subredditId: "t5_testsub",
+            authorName: "author_user",
           }),
           getUserFlairTemplates: vi.fn().mockResolvedValue(
             options?.flairTemplates ?? [
@@ -388,9 +409,11 @@ describe("form", () => {
         flairs: ["flair_1"],
         top_level_only: false,
         exclude_mods: true,
+        exclude_author: true,
         expiration: 3600,
         removal_reason: "none",
         sticky_comment_text: "Original sticky text %%flair%%",
+        op_author_name: "author_user",
         conversation_id: "conv_existing_123",
         sticky_comment_id: "t1_sticky999",
         scheduler_job_id: "job_old_123",
@@ -502,6 +525,7 @@ describe("form", () => {
           flairs: ["flair_1"],
           top_level_only: false,
           exclude_mods: true,
+          exclude_author: true,
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["3600"],
@@ -515,6 +539,132 @@ describe("form", () => {
           text: "No changes to commenting restrictions",
           appearance: "neutral",
         });
+      });
+
+      it("updates legacy settings missing exclude_author and op_author_name upon form submission", async () => {
+        const legacySettings: PostSettings = {
+          post_id: "t3_post123",
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          expiration: 3600,
+          removal_reason: "none",
+          sticky_comment_text: "Original sticky text %%flair%%",
+          conversation_id: "conv_existing_123",
+          sticky_comment_id: "t1_sticky999",
+          scheduler_job_id: "job_old_123",
+          expires_at: 1800000000000,
+        };
+        const { mockContext, showToast, redisStore } = setupProcessFormContext({
+          initialSettings: legacySettings,
+        });
+
+        const identicalValues = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Original sticky text %%flair%%",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values: identicalValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith({
+          text: "Commenting restrictions updated",
+          appearance: "success",
+        });
+        const saved = JSON.parse(redisStore["t3_post123"]);
+        expect(saved.exclude_author).toBe(true);
+        expect(saved.op_author_name).toBe("author_user");
+      });
+
+      it("shows toast, cleans up settings and cancels expiration if post was deleted", async () => {
+        const { mockContext, showToast } = setupProcessFormContext({
+          initialSettings: oldSettings,
+        });
+        (mockContext.reddit.getPostById as any).mockResolvedValue({
+          id: "t3_post123",
+          authorName: "[deleted]",
+          removedByCategory: "deleted",
+        });
+
+        const values = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Sticky",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+        expect(mockContext.redis.del).toHaveBeenCalledWith("t3_post123");
+        expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_old_123");
+      });
+
+      it("shows toast without job cancellation if post was deleted with settings but without existing job", async () => {
+        const { mockContext, showToast } = setupProcessFormContext({
+          initialSettings: {
+            ...oldSettings,
+            scheduler_job_id: undefined,
+          },
+        });
+        (mockContext.reddit.getPostById as any).mockResolvedValue({
+          id: "t3_post123",
+          authorName: "user",
+          removedByCategory: "deleted",
+        });
+
+        const values = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Sticky",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+        expect(mockContext.redis.del).toHaveBeenCalledWith("t3_post123");
+        expect(mockContext.scheduler.cancelJob).not.toHaveBeenCalled();
+      });
+
+      it("shows toast without cleanup if post was deleted and restrictions were never enabled", async () => {
+        const { mockContext, showToast } = setupProcessFormContext();
+        (mockContext.reddit.getPostById as any).mockResolvedValue({
+          id: "t3_post123",
+          authorName: "user",
+          removedByCategory: "deleted",
+        });
+
+        const values = {
+          is_enabled: true,
+          flairs: ["flair_1"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: ["none"],
+          sticky_comment_text: "Sticky",
+          expiration: ["3600"],
+        };
+
+        await processForm({ values } as FormOnSubmitEvent<JSONObject>, mockContext);
+
+        expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+        expect(mockContext.redis.del).not.toHaveBeenCalled();
+        expect(mockContext.scheduler.cancelJob).not.toHaveBeenCalled();
       });
 
       it("catches sticky comment update error during edit without throwing", async () => {

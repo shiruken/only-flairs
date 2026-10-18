@@ -94,6 +94,13 @@ export function createFormConfig(data: any) {
         defaultValue: !settings || settings.exclude_mods,
       },
       {
+        name: "exclude_author",
+        label: "Exclude Author",
+        helpText: "Exclude post author from comment restrictions",
+        type: "boolean" as const,
+        defaultValue: settings?.exclude_author ?? true,
+      },
+      {
         name: "removal_reason",
         label: "Removal Reason",
         helpText: "Subreddit removal reason to use on actioned comments",
@@ -155,6 +162,20 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
   if (!mod) {
     throw new Error("Unable to get current user");
   }
+
+  // Guard against deleted posts
+  if (post.authorName === '[deleted]' || post.removedByCategory === 'deleted') {
+    if (settings_old?.is_enabled) {
+      await clearPostSettings(settings.post_id, context);
+      if (settings_old.scheduler_job_id) {
+        await cancelExpiration(settings_old.scheduler_job_id, context);
+      }
+    }
+    context.ui.showToast("Cannot configure restrictions on a deleted post");
+    return;
+  }
+
+  settings.op_author_name = post.authorName;
 
   if (settings.is_enabled) {
 
@@ -228,6 +249,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
                 `* **User Flairs:** ${user_flairs_text}\n\n` +
                 `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
                 `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+                `* **Exclude Author:** ${settings.exclude_author}\n\n` +
                 `* **Removal Reason:** ${removal_reason_text}\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
@@ -302,6 +324,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
               `* **User Flairs:** ${user_flairs_text}\n\n` +
               `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
               `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+              `* **Exclude Author:** ${settings.exclude_author}\n\n` +
               `* **Removal Reason:** ${removal_reason_text}\n\n` +
               `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
               `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,

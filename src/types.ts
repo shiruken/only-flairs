@@ -12,6 +12,10 @@ export type PostSettings = {
   top_level_only: boolean;
   /** Exclude subreddit moderators from comment restrictions */
   exclude_mods: boolean;
+  /** Exclude post author from comment restrictions */
+  exclude_author?: boolean;
+  /** Username of the post author */
+  op_author_name?: string;
   /** Duration (in seconds) until flaired user only mode is disabled */
   expiration: number;
   /** Removal reason ID to use on actioned comments */

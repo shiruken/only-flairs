@@ -26,6 +26,7 @@ describe("handlers", () => {
       const showForm = vi.fn();
       const mockContext = {
         reddit: {
+          getPostById: vi.fn().mockResolvedValue({ id: "t3_post123", authorName: "op_colin", removedByCategory: undefined }),
           getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
           getUserFlairTemplates: vi.fn().mockResolvedValue([{ id: "flair_abc", text: "Verified" }]),
           getSubredditRemovalReasons: vi.fn().mockResolvedValue([{ id: "reason_xyz", title: "No flair" }]),
@@ -47,6 +48,7 @@ describe("handlers", () => {
 
       await showPostRestrictForm(event, mockContext);
 
+      expect(mockContext.reddit.getPostById).toHaveBeenCalledWith("t3_post123");
       expect(mockContext.reddit.getCurrentSubredditName).toHaveBeenCalled();
       expect(mockContext.redis.get).toHaveBeenCalledWith("t3_post123");
       expect(mockContext.settings.get).toHaveBeenCalledWith("sticky_comment_text_default");
@@ -64,6 +66,7 @@ describe("handlers", () => {
       const showForm = vi.fn();
       const mockContext = {
         reddit: {
+          getPostById: vi.fn().mockResolvedValue({ id: "t3_newpost", authorName: "op_colin", removedByCategory: undefined }),
           getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
           getUserFlairTemplates: vi.fn().mockResolvedValue([]),
           getSubredditRemovalReasons: vi.fn().mockResolvedValue([]),
@@ -101,6 +104,7 @@ describe("handlers", () => {
       };
       const mockContext = {
         reddit: {
+          getPostById: vi.fn().mockResolvedValue({ id: "t3_post123", authorName: "op_colin", removedByCategory: undefined }),
           getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
           getUserFlairTemplates: vi.fn().mockResolvedValue([]),
           getSubredditRemovalReasons: vi.fn().mockResolvedValue([]),
@@ -128,6 +132,131 @@ describe("handlers", () => {
         flairs: "[]",
         removal_reasons: [],
       });
+    });
+
+    it("shows toast, cleans up settings and cancels expiration on a deleted post", async () => {
+      const showToast = vi.fn();
+      const showForm = vi.fn();
+      const mockSettings: PostSettings = {
+        ...mockPostSettings,
+        is_enabled: true,
+        scheduler_job_id: "job_to_cancel_123",
+      };
+      const mockContext = {
+        reddit: {
+          getPostById: vi.fn().mockResolvedValue({
+            id: "t3_deleted",
+            authorName: "[deleted]",
+            removedByCategory: "deleted",
+          }),
+          getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
+        },
+        settings: {
+          get: vi.fn().mockResolvedValue(undefined),
+        },
+        redis: {
+          get: vi.fn().mockResolvedValue(JSON.stringify(mockSettings)),
+          del: vi.fn().mockResolvedValue(1),
+        },
+        scheduler: {
+          cancelJob: vi.fn().mockResolvedValue(undefined),
+        },
+        ui: {
+          showToast,
+          showForm,
+        },
+      } as unknown as Context;
+
+      const event = {
+        targetId: "t3_deleted",
+      } as MenuItemOnPressEvent;
+
+      await showPostRestrictForm(event, mockContext);
+
+      expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+      expect(mockContext.redis.del).toHaveBeenCalledWith("t3_deleted");
+      expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_to_cancel_123");
+      expect(showForm).not.toHaveBeenCalled();
+    });
+
+    it("shows toast without Redis cleanup on an unmonitored deleted post", async () => {
+      const showToast = vi.fn();
+      const showForm = vi.fn();
+      const mockContext = {
+        reddit: {
+          getPostById: vi.fn().mockResolvedValue({
+            id: "t3_deleted",
+            authorName: "some_user",
+            removedByCategory: "deleted",
+          }),
+          getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
+        },
+        settings: {
+          get: vi.fn().mockResolvedValue(undefined),
+        },
+        redis: {
+          get: vi.fn().mockResolvedValue(null),
+          del: vi.fn(),
+        },
+        ui: {
+          showToast,
+          showForm,
+        },
+      } as unknown as Context;
+
+      const event = {
+        targetId: "t3_deleted",
+      } as MenuItemOnPressEvent;
+
+      await showPostRestrictForm(event, mockContext);
+
+      expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+      expect(mockContext.redis.del).not.toHaveBeenCalled();
+      expect(showForm).not.toHaveBeenCalled();
+    });
+
+    it("cleans up settings on a deleted post without scheduler job", async () => {
+      const showToast = vi.fn();
+      const showForm = vi.fn();
+      const mockSettings: PostSettings = {
+        ...mockPostSettings,
+        is_enabled: true,
+        scheduler_job_id: undefined,
+      };
+      const mockContext = {
+        reddit: {
+          getPostById: vi.fn().mockResolvedValue({
+            id: "t3_deleted",
+            authorName: "[deleted]",
+            removedByCategory: "deleted",
+          }),
+          getCurrentSubredditName: vi.fn().mockResolvedValue("testsubreddit"),
+        },
+        settings: {
+          get: vi.fn().mockResolvedValue(undefined),
+        },
+        redis: {
+          get: vi.fn().mockResolvedValue(JSON.stringify(mockSettings)),
+          del: vi.fn().mockResolvedValue(1),
+        },
+        scheduler: {
+          cancelJob: vi.fn(),
+        },
+        ui: {
+          showToast,
+          showForm,
+        },
+      } as unknown as Context;
+
+      const event = {
+        targetId: "t3_deleted",
+      } as MenuItemOnPressEvent;
+
+      await showPostRestrictForm(event, mockContext);
+
+      expect(showToast).toHaveBeenCalledWith("Cannot configure restrictions on a deleted post");
+      expect(mockContext.redis.del).toHaveBeenCalledWith("t3_deleted");
+      expect(mockContext.scheduler.cancelJob).not.toHaveBeenCalled();
     });
   });
 
@@ -184,6 +313,7 @@ describe("handlers", () => {
         },
         reddit: {
           getCommentById: vi.fn().mockResolvedValue(mockCommentAPI),
+          getPostById: vi.fn().mockResolvedValue({ id: "t3_post100", authorName: "default_author" }),
           getCurrentSubreddit: vi.fn().mockResolvedValue({
             name: "testsubreddit",
             getModerators: vi.fn().mockImplementation(() => {
@@ -367,6 +497,115 @@ describe("handlers", () => {
         const event = {
           comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
           author: { name: "mod_user", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).toHaveBeenCalled();
+      });
+    });
+
+    describe("author exclusion", () => {
+      it("skips comments from post author when exclude_author is true", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: true,
+          op_author_name: "op_user",
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "op_user", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("matches author with case insensitivity", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: true,
+          op_author_name: "OP_USER",
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "op_user", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("falls back to fetching post if op_author_name is missing from settings", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: true,
+          op_author_name: undefined,
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        (mockContext.reddit.getPostById as any).mockResolvedValue({ authorName: "lazy_op" });
+
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "lazy_op", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getPostById).toHaveBeenCalledWith("t3_post100");
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("continues flair check when post author fetch fallback fails", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: true,
+          op_author_name: undefined,
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        (mockContext.reddit.getPostById as any).mockRejectedValue(new Error("API failure"));
+
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "lazy_op", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).toHaveBeenCalled();
+      });
+
+      it("does not exclude author when exclude_author is false", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: false,
+          op_author_name: "op_user",
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "op_user", flair: { templateId: "wrong_flair", text: "text" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).toHaveBeenCalled();
+      });
+
+      it("does not exclude comments when author is [deleted]", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          exclude_author: true,
+          op_author_name: "[deleted]",
+        };
+        const { mockContext, remove } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "[deleted]", flair: { templateId: "wrong_flair", text: "text" } },
         } as CommentSubmit;
 
         await checkComment(event, mockContext);

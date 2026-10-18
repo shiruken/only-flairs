@@ -34,6 +34,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 * **User Flairs:** Only allow comments from users with the selected flair(s). The 'Any' option allows any user with flair to comment.
 * **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
 * **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
+* **Exclude Author:** Exclude the post author from comment restrictions
 * **Removal Reason:** Subreddit removal reason to use on actioned comments. Select 'None' to specify no removal reason.
 * **Sticky Comment:** Text for the sticky comment on the post. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Defaults to the value defined in the installation settings.
 * **Expiration:** Automatically disable comment restrictions after selected duration

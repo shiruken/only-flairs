@@ -7,6 +7,7 @@ const BASE = {
   flairs: [ "any" ],
   top_level_only: [ "no" ],
   exclude_mods: [ "yes" ],
+  exclude_author: [ "yes" ],
   removal_reason: [ "none" ],
   expiration: [ "2592000" ],
 };
@@ -35,6 +36,7 @@ describe("parseFormValues", () => {
       flairs: [ "any" ],
       top_level_only: false,
       exclude_mods: true,
+      exclude_author: true,
       expiration: 2592000,
       removal_reason: "none",
       sticky_comment_text: "",
@@ -53,12 +55,13 @@ describe("parseFormValues", () => {
 
   test("parses disabled and yes/no flags", () => {
     const settings = parseFormValues(
-      { ...BASE, is_enabled: [ "disabled" ], top_level_only: [ "yes" ], exclude_mods: [ "no" ] },
+      { ...BASE, is_enabled: [ "disabled" ], top_level_only: [ "yes" ], exclude_mods: [ "no" ], exclude_author: [ "no" ] },
       "t3_abc",
     );
     expect(settings.is_enabled).toBe(false);
     expect(settings.top_level_only).toBe(true);
     expect(settings.exclude_mods).toBe(false);
+    expect(settings.exclude_author).toBe(false);
   });
 
   test("parses native boolean toggle submissions", () => {
@@ -67,6 +70,7 @@ describe("parseFormValues", () => {
       flairs: [ "any" ],
       top_level_only: true,
       exclude_mods: false,
+      exclude_author: true,
       removal_reason: [ "none" ],
       expiration: [ "2592000" ],
     };
@@ -74,6 +78,7 @@ describe("parseFormValues", () => {
     expect(settings.is_enabled).toBe(true);
     expect(settings.top_level_only).toBe(true);
     expect(settings.exclude_mods).toBe(false);
+    expect(settings.exclude_author).toBe(true);
   });
 
   test("defaults empty flair selection to any", () => {
@@ -135,6 +140,7 @@ describe("parseFormValues", () => {
       expiration: [ "2592000" ],
       removal_reason: [ "none" ],
       exclude_mods: [ "yes" ],
+      exclude_author: [ "yes" ],
       flairs: [ "any" ],
       top_level_only: [ "no" ],
       is_enabled: [ "enabled" ],

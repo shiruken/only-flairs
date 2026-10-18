@@ -59,6 +59,7 @@ export function parseFormValues(values: JSONObject, post_id: string): PostSettin
     flairs: flairs,
     top_level_only: parseFlag(values.top_level_only, YES),
     exclude_mods: parseFlag(values.exclude_mods, YES),
+    exclude_author: parseFlag(values.exclude_author, YES),
     expiration: Number(expiration ?? 0),
     removal_reason: removal_reasons[0],
     // Empty paragraph fields are omitted from the submitted values
