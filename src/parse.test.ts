@@ -1,32 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { parseFlag, parseFormValues } from "./parse.js";
+import { parseFormValues } from "./parse.js";
 
-// Values as submitted by the select-based form, captured shape from playtest logs
+// Values as submitted by the form, with the default exemptions selected
 const BASE = {
-  is_enabled: [ "enabled" ],
   flairs: [ "any" ],
-  top_level_only: [ "no" ],
-  exclude_mods: [ "yes" ],
-  exclude_author: [ "yes" ],
+  exemptions: [ "mods", "author" ],
   removal_reason: [ "none" ],
   expiration: [ "2592000" ],
 };
-
-describe("parseFlag", () => {
-  test.each([
-    [ [ "enabled" ], true ],
-    [ [ "disabled" ], false ],
-    [ "enabled", true ],
-    [ "disabled", false ],
-    [ true, true ],
-    [ false, false ],
-    [ "true", true ],
-    [ undefined, false ],
-    [ [], false ],
-  ])("%j -> %s", (value, expected) => {
-    expect(parseFlag(value, "enabled")).toBe(expected);
-  });
-});
 
 describe("parseFormValues", () => {
   test("parses a typical enable submission", () => {
@@ -53,32 +34,28 @@ describe("parseFormValues", () => {
     expect(settings.sticky_comment_text).toBe("Flaired only: %%flair%%");
   });
 
-  test("parses disabled and yes/no flags", () => {
-    const settings = parseFormValues(
-      { ...BASE, is_enabled: [ "disabled" ], top_level_only: [ "yes" ], exclude_mods: [ "no" ], exclude_author: [ "no" ] },
-      "t3_abc",
-    );
-    expect(settings.is_enabled).toBe(false);
-    expect(settings.top_level_only).toBe(true);
-    expect(settings.exclude_mods).toBe(false);
-    expect(settings.exclude_author).toBe(false);
+  test("always enables", () => {
+    expect(parseFormValues({ ...BASE, is_enabled: false }, "t3_abc").is_enabled).toBe(true);
   });
 
-  test("parses native boolean toggle submissions", () => {
-    const booleanSubmission = {
-      is_enabled: true,
-      flairs: [ "any" ],
+  test("maps each exemption to its setting", () => {
+    expect(parseFormValues({ ...BASE, exemptions: [ "replies" ] }, "t3_abc")).toMatchObject({
       top_level_only: true,
       exclude_mods: false,
+      exclude_author: false,
+    });
+    expect(parseFormValues({ ...BASE, exemptions: [ "mods", "author", "replies" ] }, "t3_abc")).toMatchObject({
+      top_level_only: true,
+      exclude_mods: true,
       exclude_author: true,
-      removal_reason: [ "none" ],
-      expiration: [ "2592000" ],
-    };
-    const settings = parseFormValues(booleanSubmission, "t3_abc");
-    expect(settings.is_enabled).toBe(true);
-    expect(settings.top_level_only).toBe(true);
-    expect(settings.exclude_mods).toBe(false);
-    expect(settings.exclude_author).toBe(true);
+    });
+  });
+
+  test("treats empty or omitted exemptions as none", () => {
+    const none = { top_level_only: false, exclude_mods: false, exclude_author: false };
+    expect(parseFormValues({ ...BASE, exemptions: [] }, "t3_abc")).toMatchObject(none);
+    const { exemptions: _omitted, ...without } = BASE;
+    expect(parseFormValues(without, "t3_abc")).toMatchObject(none);
   });
 
   test("defaults empty flair selection to any", () => {
@@ -103,12 +80,10 @@ describe("parseFormValues", () => {
 
   test("handles non-array or omitted flairs, removal_reason, and expiration", () => {
     const values = {
-      is_enabled: [ "enabled" ],
       flairs: undefined,
       removal_reason: undefined,
       expiration: undefined,
-      top_level_only: [ "no" ],
-      exclude_mods: [ "yes" ],
+      exemptions: [ "mods" ],
     };
     const settings = parseFormValues(values as any, "t3_abc");
     expect(settings.flairs).toEqual([ "any" ]);
@@ -139,11 +114,8 @@ describe("parseFormValues", () => {
     const reordered = {
       expiration: [ "2592000" ],
       removal_reason: [ "none" ],
-      exclude_mods: [ "yes" ],
-      exclude_author: [ "yes" ],
+      exemptions: [ "author", "mods" ],
       flairs: [ "any" ],
-      top_level_only: [ "no" ],
-      is_enabled: [ "enabled" ],
     };
     expect(JSON.stringify(parseFormValues(reordered, "t3_abc")))
       .toBe(JSON.stringify(parseFormValues(BASE, "t3_abc")));

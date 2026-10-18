@@ -2,30 +2,10 @@ import type { JSONObject } from "@devvit/public-api";
 import type { PostSettings } from "./types.js";
 import { logger } from "./logger.js";
 
-/** Option values for on/off select fields */
-export const ENABLED = "enabled";
-export const DISABLED = "disabled";
-export const YES = "yes";
-export const NO = "no";
-
-/**
- * Parse an on/off form value into a boolean
- *
- * Accepts the select field format (`["enabled"]`) as well as plain strings and
- * legacy boolean values, since boolean form fields are unreliable on mobile
- * @param value Raw form value
- * @param true_value Option value that represents `true`
- * @returns `true` if the value matches `true_value`, otherwise `false`
- */
-export function parseFlag(value: unknown, true_value: string): boolean {
-  if (Array.isArray(value)) {
-    value = value[0];
-  }
-  if (typeof value === "boolean") {
-    return value;
-  }
-  return value === true_value || value === "true";
-}
+/** Option values for the `exemptions` multi-select field */
+export const EXEMPT_MODS = "mods";
+export const EXEMPT_AUTHOR = "author";
+export const EXEMPT_REPLIES = "replies";
 
 /**
  * Convert a submitted form into a {@link PostSettings} object
@@ -53,13 +33,18 @@ export function parseFormValues(values: JSONObject, post_id: string): PostSettin
 
   const expiration = Array.isArray(values.expiration) ? values.expiration[0] : values.expiration;
 
+  // A multi-select replaces boolean fields, which mobile clients reset to their
+  // default after they scroll out of view. An empty selection may be omitted.
+  const exemptions = Array.isArray(values.exemptions) ? values.exemptions.map(String) : [];
+
   return {
     post_id: post_id,
-    is_enabled: parseFlag(values.is_enabled, ENABLED),
+    // Saving the form enables restrictions. The Remove Flair Restriction action disables them.
+    is_enabled: true,
     flairs: flairs,
-    top_level_only: parseFlag(values.top_level_only, YES),
-    exclude_mods: parseFlag(values.exclude_mods, YES),
-    exclude_author: parseFlag(values.exclude_author, YES),
+    top_level_only: exemptions.includes(EXEMPT_REPLIES),
+    exclude_mods: exemptions.includes(EXEMPT_MODS),
+    exclude_author: exemptions.includes(EXEMPT_AUTHOR),
     expiration: Number(expiration ?? 0),
     removal_reason: removal_reasons[0],
     // Empty paragraph fields are omitted from the submitted values

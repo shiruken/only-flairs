@@ -1,6 +1,6 @@
 import { Devvit } from "@devvit/public-api";
 import { settings } from "./settings.js";
-import { checkComment, onAppChanged, onModAction, showPostRestrictForm } from "./handlers.js";
+import { checkComment, onAppChanged, onModAction, showPostRestrictForm, showRemoveRestrictionForm } from "./handlers.js";
 import { EXPIRE_JOB_NAME, onExpireRestrictions } from "./scheduler.js";
 
 Devvit.configure({
@@ -10,13 +10,22 @@ Devvit.configure({
 
 Devvit.addSettings(settings);
 
-// Moderator menu item to toggle flaired user only mode
+// Moderator menu item to enable or edit flaired user only mode
 Devvit.addMenuItem({
   location: "post",
   forUserType: "moderator",
   label: "Restrict to Flaired Users",
   description: "Restrict commenting on this post to only flaired users",
   onPress: showPostRestrictForm,
+});
+
+// Moderator menu item to disable flaired user only mode
+Devvit.addMenuItem({
+  location: "post",
+  forUserType: "moderator",
+  label: "Remove Flair Restriction",
+  description: "Allow comments from all users on this post",
+  onPress: showRemoveRestrictionForm,
 });
 
 // Check all incoming comments

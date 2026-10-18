@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createFormConfig, processForm, quoteText } from "./form.js";
+import { createFormConfig, processForm, processRemoveForm, quoteText } from "./form.js";
 import type { Context, FormOnSubmitEvent, JSONObject } from "@devvit/public-api";
 import type { PostSettings } from "./types.js";
 
@@ -41,24 +41,26 @@ describe("form", () => {
       expect(config.acceptLabel).toBe("Save");
 
       const fields = config.fields;
-      const isEnabledField = fields.find((f: any) => f.name === "is_enabled");
       const flairsField = fields.find((f: any) => f.name === "flairs");
-      const topLevelField = fields.find((f: any) => f.name === "top_level_only");
-      const excludeModsField = fields.find((f: any) => f.name === "exclude_mods");
+      const exemptionsField = fields.find((f: any) => f.name === "exemptions");
       const removalReasonField = fields.find((f: any) => f.name === "removal_reason");
       const stickyCommentField = fields.find((f: any) => f.name === "sticky_comment_text");
       const expirationField = fields.find((f: any) => f.name === "expiration");
 
-      expect(isEnabledField?.defaultValue).toBe(true);
+      expect(fields.find((f: any) => f.name === "is_enabled")).toBeUndefined();
       expect(flairsField?.defaultValue).toEqual(["any"]);
       expect(flairsField?.options).toEqual([
         { label: "Any", value: "any" },
         { label: "Verified Member", value: "flair_1" },
         { label: "Contributor", value: "flair_2" },
       ]);
-      expect(topLevelField?.defaultValue).toBe(false);
-      expect(excludeModsField?.defaultValue).toBe(true);
-      expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
+      expect(exemptionsField?.defaultValue).toEqual(["mods", "author"]);
+      expect(exemptionsField?.options).toEqual([
+        { label: "Moderators", value: "mods" },
+        { label: "Post author", value: "author" },
+        { label: "Replies to comments", value: "replies" },
+      ]);
+      expect(fields.some((f: any) => f.type === "boolean")).toBe(false);
       expect(removalReasonField?.defaultValue).toEqual(["none"]);
       expect(removalReasonField?.options).toEqual([
         { label: "None", value: "none" },
@@ -92,17 +94,14 @@ describe("form", () => {
       const config = createFormConfig(data);
       const fields = config.fields;
 
-      expect(fields.find((f: any) => f.name === "is_enabled")?.defaultValue).toBe(false);
       expect(fields.find((f: any) => f.name === "flairs")?.defaultValue).toEqual(["flair_1"]);
-      expect(fields.find((f: any) => f.name === "top_level_only")?.defaultValue).toBe(true);
-      expect(fields.find((f: any) => f.name === "exclude_mods")?.defaultValue).toBe(false);
-      expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(false);
+      expect(fields.find((f: any) => f.name === "exemptions")?.defaultValue).toEqual(["replies"]);
       expect(fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["reason_1"]);
       expect(fields.find((f: any) => f.name === "sticky_comment_text")?.defaultValue).toBe("Custom sticky comment");
       expect(fields.find((f: any) => f.name === "expiration")?.defaultValue).toEqual(["3600"]);
     });
 
-    it("populates exclude_author as true when enabled in existing post settings", () => {
+    it("selects mods and author exemptions when enabled in existing post settings", () => {
       const config = createFormConfig({
         settings: {
           post_id: "t3_post123",
@@ -116,7 +115,7 @@ describe("form", () => {
           expiration: 0,
         },
       });
-      expect(config.fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
+      expect(config.fields.find((f: any) => f.name === "exemptions")?.defaultValue).toEqual(["mods", "author"]);
     });
 
     it("handles omitted or undefined flairs and removal_reasons gracefully", () => {
@@ -220,10 +219,8 @@ describe("form", () => {
       (mockContext.reddit.getCurrentUser as any).mockResolvedValue(undefined);
 
       const formValues = {
-        is_enabled: true,
         flairs: ["any"],
-        top_level_only: false,
-        exclude_mods: true,
+        exemptions: ["mods"],
         removal_reason: ["none"],
         sticky_comment_text: "",
         expiration: ["0"],
@@ -239,10 +236,8 @@ describe("form", () => {
         const { mockContext, showToast, mockComment, redisStore } = setupProcessFormContext();
 
         const formValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["reason_rules"],
           sticky_comment_text: "Comments restricted to: %%flair%%",
           expiration: ["2592000"],
@@ -287,10 +282,8 @@ describe("form", () => {
         const { mockContext } = setupProcessFormContext();
 
         const formValues = {
-          is_enabled: true,
           flairs: ["any"],
-          top_level_only: true,
-          exclude_mods: false,
+          exemptions: ["replies"],
           removal_reason: ["none"],
           sticky_comment_text: "Allowed flairs: %%flair%%",
           expiration: ["0"],
@@ -315,10 +308,8 @@ describe("form", () => {
         });
 
         const formValues = {
-          is_enabled: true,
           flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["unknown_reason_id"],
           sticky_comment_text: "",
           expiration: ["0"],
@@ -337,10 +328,8 @@ describe("form", () => {
         const { mockContext, showToast } = setupProcessFormContext();
 
         const formValues = {
-          is_enabled: true,
           flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "",
           expiration: ["0"],
@@ -360,10 +349,8 @@ describe("form", () => {
         (mockContext.reddit.submitComment as any).mockRejectedValue(new Error("API rate limited"));
 
         const formValues = {
-          is_enabled: true,
           flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "Sticky note",
           expiration: ["0"],
@@ -384,10 +371,8 @@ describe("form", () => {
         (mockContext.redis.set as any).mockRejectedValue(new Error("Redis disk full"));
 
         const formValues = {
-          is_enabled: true,
           flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "",
           expiration: ["0"],
@@ -426,10 +411,9 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1", "flair_2"],
+          exemptions: ["mods"],
           top_level_only: true, // changed
-          exclude_mods: true,
           removal_reason: ["none"],
           sticky_comment_text: "Updated sticky text %%flair%%", // changed
           expiration: ["3600"],
@@ -458,10 +442,8 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "", // cleared
           expiration: ["3600"],
@@ -489,10 +471,8 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "New sticky comment",
           expiration: ["3600"],
@@ -521,11 +501,8 @@ describe("form", () => {
 
         // Exact match to oldSettings
         const identicalValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
-          exclude_author: true,
+          exemptions: ["mods", "author"],
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["3600"],
@@ -561,11 +538,8 @@ describe("form", () => {
         });
 
         const identicalValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
-          exclude_author: true,
+          exemptions: ["mods", "author"],
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["3600"],
@@ -593,11 +567,8 @@ describe("form", () => {
         });
 
         const values = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
-          exclude_author: true,
+          exemptions: ["mods", "author"],
           removal_reason: ["none"],
           sticky_comment_text: "Sticky",
           expiration: ["3600"],
@@ -624,11 +595,8 @@ describe("form", () => {
         });
 
         const values = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
-          exclude_author: true,
+          exemptions: ["mods", "author"],
           removal_reason: ["none"],
           sticky_comment_text: "Sticky",
           expiration: ["3600"],
@@ -650,11 +618,8 @@ describe("form", () => {
         });
 
         const values = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
-          exclude_author: true,
+          exemptions: ["mods", "author"],
           removal_reason: ["none"],
           sticky_comment_text: "Sticky",
           expiration: ["3600"],
@@ -674,10 +639,9 @@ describe("form", () => {
         mockComment.edit.mockRejectedValue(new Error("Comment edit API error"));
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
+          exemptions: ["mods"],
           top_level_only: true, // change
-          exclude_mods: true,
           removal_reason: ["none"],
           sticky_comment_text: "Changed comment text",
           expiration: ["3600"],
@@ -700,10 +664,9 @@ describe("form", () => {
         (mockContext.redis.set as any).mockRejectedValue(new Error("Redis save failure"));
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
+          exemptions: ["mods"],
           top_level_only: true, // change
-          exclude_mods: true,
           removal_reason: ["none"],
           sticky_comment_text: "Changed comment text",
           expiration: ["3600"],
@@ -723,10 +686,8 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["7200"], // changed
@@ -757,10 +718,8 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["0"], // changed to never
@@ -788,10 +747,8 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
-          top_level_only: false,
-          exclude_mods: true,
+          exemptions: ["mods"],
           removal_reason: ["none"],
           sticky_comment_text: "Original sticky text %%flair%%",
           expiration: ["3600"],
@@ -820,10 +777,9 @@ describe("form", () => {
         });
 
         const updatedValues = {
-          is_enabled: true,
           flairs: ["flair_1"],
+          exemptions: ["mods"],
           top_level_only: true, // change so form has changes
-          exclude_mods: true,
           removal_reason: ["none"],
           sticky_comment_text: "", // still empty
           expiration: ["3600"],
@@ -837,7 +793,7 @@ describe("form", () => {
       });
     });
 
-    describe("disabling restrictions", () => {
+    describe("removing restrictions with processRemoveForm", () => {
       it("disables restrictions, deletes sticky comment, sends ModMail and clears Redis", async () => {
         const existingSettings: PostSettings = {
           post_id: "t3_post123",
@@ -857,17 +813,8 @@ describe("form", () => {
           initialSettings: existingSettings,
         });
 
-        const disableValues = {
-          is_enabled: false,
-          flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
-          removal_reason: ["none"],
-          sticky_comment_text: "",
-          expiration: ["0"],
-        };
 
-        await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+        await processRemoveForm({ values: {} } as FormOnSubmitEvent<JSONObject>, mockContext);
 
         expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_to_cancel_123");
         expect(mockComment.delete).toHaveBeenCalled();
@@ -884,23 +831,14 @@ describe("form", () => {
         });
       });
 
-      it("shows neutral toast when disabling a post that was never enabled", async () => {
+      it("shows neutral toast when removing restrictions from a post that was never enabled", async () => {
         const { mockContext, showToast } = setupProcessFormContext();
 
-        const disableValues = {
-          is_enabled: false,
-          flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
-          removal_reason: ["none"],
-          sticky_comment_text: "",
-          expiration: ["0"],
-        };
 
-        await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+        await processRemoveForm({ values: {} } as FormOnSubmitEvent<JSONObject>, mockContext);
 
         expect(showToast).toHaveBeenCalledWith({
-          text: "Commenting restriction not applied. Did you forget to enable Flaired Only mode?",
+          text: "Commenting is not restricted on this post",
           appearance: "neutral",
         });
         expect(mockContext.reddit.modMail.reply).not.toHaveBeenCalled();
@@ -925,18 +863,9 @@ describe("form", () => {
         });
         mockComment.delete.mockRejectedValue(new Error("Reddit delete API error"));
 
-        const disableValues = {
-          is_enabled: false,
-          flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
-          removal_reason: ["none"],
-          sticky_comment_text: "",
-          expiration: ["0"],
-        };
 
         await expect(
-          processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext)
+          processRemoveForm({ values: {} } as FormOnSubmitEvent<JSONObject>, mockContext)
         ).resolves.toBeUndefined();
 
         expect(showToast).toHaveBeenCalledWith({
@@ -962,17 +891,8 @@ describe("form", () => {
         });
         (mockContext.redis.del as any).mockRejectedValue(new Error("Redis del failure"));
 
-        const disableValues = {
-          is_enabled: false,
-          flairs: ["any"],
-          top_level_only: false,
-          exclude_mods: true,
-          removal_reason: ["none"],
-          sticky_comment_text: "",
-          expiration: ["0"],
-        };
 
-        await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
+        await processRemoveForm({ values: {} } as FormOnSubmitEvent<JSONObject>, mockContext);
 
         expect(showToast).toHaveBeenCalledWith({
           text: "Failed to disable commenting restrictions",

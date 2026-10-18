@@ -2,7 +2,7 @@ import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JobContext, JSONObje
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
 import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
-import { parseFormValues } from "./parse.js";
+import { EXEMPT_AUTHOR, EXEMPT_MODS, EXEMPT_REPLIES, parseFormValues } from "./parse.js";
 import { cancelExpiration, scheduleExpiration } from "./scheduler.js";
 import { logger } from "./logger.js";
 
@@ -57,18 +57,28 @@ export function createFormConfig(data: any) {
     });
   const expiration_default = Object.keys(DURATIONS).slice(-1); // 30 days
 
+  // Generate options for `exemptions` field
+  const exemption_options: FieldConfig_Selection_Item[] = [
+    { label: "Moderators", value: EXEMPT_MODS },
+    { label: "Post author", value: EXEMPT_AUTHOR },
+    { label: "Replies to comments", value: EXEMPT_REPLIES },
+  ];
+  const exemption_default: string[] = [];
+  if (!settings || settings.exclude_mods) {
+    exemption_default.push(EXEMPT_MODS);
+  }
+  if (settings?.exclude_author ?? true) {
+    exemption_default.push(EXEMPT_AUTHOR);
+  }
+  if (settings && settings.top_level_only) {
+    exemption_default.push(EXEMPT_REPLIES);
+  }
+
   return {
     title: "Restrict to Flaired Users",
     description: "Restrict commenting on this post to only flaired users",
     acceptLabel: "Save",
     fields: [
-      {
-        name: "is_enabled",
-        label: "Enable",
-        helpText: "Enable or disable flaired user only mode",
-        type: "boolean" as const,
-        defaultValue: !settings || settings.is_enabled,
-      },
       {
         name: "flairs",
         label: "User Flairs",
@@ -80,25 +90,14 @@ export function createFormConfig(data: any) {
         defaultValue: settings ? settings.flairs : [ "any" ],
       },
       {
-        name: "top_level_only",
-        label: "Only Restrict Top-Level Comments",
-        helpText: "Allow comment replies from any user regardless of flair",
-        type: "boolean" as const,
-        defaultValue: settings ? settings.top_level_only : false,
-      },
-      {
-        name: "exclude_mods",
-        label: "Exclude Moderators",
-        helpText: "Exclude subreddit moderators from comment restrictions",
-        type: "boolean" as const,
-        defaultValue: !settings || settings.exclude_mods,
-      },
-      {
-        name: "exclude_author",
-        label: "Exclude Author",
-        helpText: "Exclude post author from comment restrictions",
-        type: "boolean" as const,
-        defaultValue: settings?.exclude_author ?? true,
+        name: "exemptions",
+        label: "Exempt from Restriction",
+        helpText: "Allow comments from the selected users or comment types regardless of flair",
+        type: "select" as const,
+        required: false,
+        multiSelect: true,
+        options: exemption_options,
+        defaultValue: exemption_default,
       },
       {
         name: "removal_reason",
@@ -177,150 +176,73 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
 
   settings.op_author_name = post.authorName;
 
-  if (settings.is_enabled) {
+  // Fetch flair templates and removal reasons in parallel if needed
+  const flairsPromise = !settings.flairs.includes("any")
+    ? context.reddit.getUserFlairTemplates(post.subredditName)
+    : Promise.resolve([] as FlairTemplate[]);
+  const reasonsPromise = settings.removal_reason != "none"
+    ? context.reddit.getSubredditRemovalReasons(post.subredditName)
+    : Promise.resolve([] as RemovalReason[]);
 
-    // Fetch flair templates and removal reasons in parallel if needed
-    const flairsPromise = !settings.flairs.includes("any")
-      ? context.reddit.getUserFlairTemplates(post.subredditName)
-      : Promise.resolve([] as FlairTemplate[]);
-    const reasonsPromise = settings.removal_reason != "none"
-      ? context.reddit.getSubredditRemovalReasons(post.subredditName)
-      : Promise.resolve([] as RemovalReason[]);
+  const [flairs, reasons] = await Promise.all([flairsPromise, reasonsPromise]);
 
-    const [flairs, reasons] = await Promise.all([flairsPromise, reasonsPromise]);
-
-    // Format flair titles for display
-    let user_flairs_text = "Any";
-    if (!settings.flairs.includes("any")) {
-      const flairs_text: string[] = [];
-      for (const flair of flairs as FlairTemplate[]) {
-        if (settings.flairs.includes(flair.id)) {
-          flairs_text.push("`" + flair.text + "`");
-        }
-      }
-      user_flairs_text = flairs_text.join(", ");
-    }
-
-    // Populate placeholder in sticky comment
-    const sticky_comment_text = settings.sticky_comment_text.replace(/%%flair%%/g, () => user_flairs_text);
-
-    // Format removal reason for display
-    let removal_reason_text = "None";
-    if (settings.removal_reason != "none") {
-      for (const reason of reasons) {
-        if (settings.removal_reason == reason.id) {
-          removal_reason_text = "`" + reason.title + "`";
-          break;
-        }
+  // Format flair titles for display
+  let user_flairs_text = "Any";
+  if (!settings.flairs.includes("any")) {
+    const flairs_text: string[] = [];
+    for (const flair of flairs as FlairTemplate[]) {
+      if (settings.flairs.includes(flair.id)) {
+        flairs_text.push("`" + flair.text + "`");
       }
     }
+    user_flairs_text = flairs_text.join(", ");
+  }
 
-    if (settings_old) { // Edit
+  // Populate placeholder in sticky comment
+  const sticky_comment_text = settings.sticky_comment_text.replace(/%%flair%%/g, () => user_flairs_text);
 
-      // Propagate to new settings
-      settings.conversation_id = settings_old.conversation_id;
-      settings.sticky_comment_id = settings_old.sticky_comment_id;
-      settings.scheduler_job_id = settings_old.scheduler_job_id;
-      settings.expires_at = settings_old.expires_at;
-
-      if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
-        logger.form.info(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
-
-        // Update expiration schedule if duration changed
-        if (settings.expiration !== settings_old.expiration) {
-          if (settings_old.scheduler_job_id) {
-            await cancelExpiration(settings_old.scheduler_job_id, context);
-            settings.scheduler_job_id = undefined;
-          }
-          if (settings.expiration > 0) {
-            settings.expires_at = Date.now() + settings.expiration * 1000;
-            settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
-          } else {
-            settings.expires_at = undefined;
-          }
-        }
-
-        // Send ModMail
-        settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
-          subject: `Flaired User Only Mode Edited`,
-          body: `u/${mod.username} has edited flaired user only mode on ` +
-                `[${post.title}](${post.permalink}).\n\n` + 
-                `**Updated Configuration**\n\n` +
-                `* **User Flairs:** ${user_flairs_text}\n\n` +
-                `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
-                `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
-                `* **Exclude Author:** ${settings.exclude_author}\n\n` +
-                `* **Removal Reason:** ${removal_reason_text}\n\n` +
-                `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
-                `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
-        });
-
-        // Sticky Comment
-        try {
-          if (settings.sticky_comment_id) {
-            if (settings.sticky_comment_text) {
-              if (
-                (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
-                (settings.sticky_comment_text.includes("%%flair%%") && JSON.stringify(settings.flairs) != JSON.stringify(settings_old.flairs))
-              ) {
-                const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-                await comment.edit({
-                  text: sticky_comment_text,
-                });
-              }
-            } else {
-              const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
-              await comment.delete();
-              settings.sticky_comment_id = undefined;
-            }
-          } else {
-            if (settings.sticky_comment_text) {
-              const comment = await context.reddit.submitComment({
-                id: settings.post_id,
-                text: sticky_comment_text,
-              });
-              await comment.distinguish(true); // Distinguish + Sticky
-              settings.sticky_comment_id = comment.id;
-            }
-          }
-        } catch (e) {
-          logger.form.error(`Error updating sticky comment on ${settings.post_id}`, e);
-        }
-
-        try {
-          await storePostSettings(settings, context);
-          context.ui.showToast({
-            text: "Commenting restrictions updated",
-            appearance: "success",
-          });
-        } catch {
-          context.ui.showToast({
-            text: "Failed to update commenting restrictions",
-            appearance: "neutral",
-          });
-        }
-      } else { // No Change
-        logger.form.info(`u/${mod.username} submitted form on ${settings.post_id} with no changes`);
-        context.ui.showToast({
-          text: "No changes to commenting restrictions",
-          appearance: "neutral",
-        });
+  // Format removal reason for display
+  let removal_reason_text = "None";
+  if (settings.removal_reason != "none") {
+    for (const reason of reasons) {
+      if (settings.removal_reason == reason.id) {
+        removal_reason_text = "`" + reason.title + "`";
+        break;
       }
-    } else { // Enable
-      logger.form.info(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
+    }
+  }
 
-      // Schedule expiration job if duration is configured
-      if (settings.expiration > 0) {
-        settings.expires_at = Date.now() + settings.expiration * 1000;
-        settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
+  if (settings_old) { // Edit
+
+    // Propagate to new settings
+    settings.conversation_id = settings_old.conversation_id;
+    settings.sticky_comment_id = settings_old.sticky_comment_id;
+    settings.scheduler_job_id = settings_old.scheduler_job_id;
+    settings.expires_at = settings_old.expires_at;
+
+    if (JSON.stringify(settings) !== JSON.stringify(settings_old)) { // Has Changes
+      logger.form.info(`u/${mod.username} edited flaired user only mode on ${settings.post_id}`);
+
+      // Update expiration schedule if duration changed
+      if (settings.expiration !== settings_old.expiration) {
+        if (settings_old.scheduler_job_id) {
+          await cancelExpiration(settings_old.scheduler_job_id, context);
+          settings.scheduler_job_id = undefined;
+        }
+        if (settings.expiration > 0) {
+          settings.expires_at = Date.now() + settings.expiration * 1000;
+          settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
+        } else {
+          settings.expires_at = undefined;
+        }
       }
 
       // Send ModMail
-      settings.conversation_id = await notifyMods(context, post, undefined, {
-        subject: `Flaired User Only Mode Enabled`,
-        body: `u/${mod.username} has enabled flaired user only mode on ` +
+      settings.conversation_id = await notifyMods(context, post, settings_old.conversation_id, {
+        subject: `Flaired User Only Mode Edited`,
+        body: `u/${mod.username} has edited flaired user only mode on ` +
               `[${post.title}](${post.permalink}).\n\n` + 
-              `**Configuration**\n\n` +
+              `**Updated Configuration**\n\n` +
               `* **User Flairs:** ${user_flairs_text}\n\n` +
               `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
               `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
@@ -331,77 +253,190 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
       });
 
       // Sticky Comment
-      if (settings.sticky_comment_text) {
-        try {
-          const comment = await context.reddit.submitComment({
-            id: settings.post_id,
-            text: sticky_comment_text,
-          });
-          await comment.distinguish(true); // Distinguish + Sticky
-          settings.sticky_comment_id = comment.id;
-        } catch (e) {
-          logger.form.error(`Error posting sticky comment on ${settings.post_id}`, e);
+      try {
+        if (settings.sticky_comment_id) {
+          if (settings.sticky_comment_text) {
+            if (
+              (settings.sticky_comment_text != settings_old.sticky_comment_text) ||
+              (settings.sticky_comment_text.includes("%%flair%%") && JSON.stringify(settings.flairs) != JSON.stringify(settings_old.flairs))
+            ) {
+              const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+              await comment.edit({
+                text: sticky_comment_text,
+              });
+            }
+          } else {
+            const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+            await comment.delete();
+            settings.sticky_comment_id = undefined;
+          }
+        } else {
+          if (settings.sticky_comment_text) {
+            const comment = await context.reddit.submitComment({
+              id: settings.post_id,
+              text: sticky_comment_text,
+            });
+            await comment.distinguish(true); // Distinguish + Sticky
+            settings.sticky_comment_id = comment.id;
+          }
         }
+      } catch (e) {
+        logger.form.error(`Error updating sticky comment on ${settings.post_id}`, e);
       }
 
       try {
         await storePostSettings(settings, context);
         context.ui.showToast({
-          text: "Commenting restricted to flaired users",
+          text: "Commenting restrictions updated",
           appearance: "success",
         });
       } catch {
         context.ui.showToast({
-          text: "Failed to save commenting restrictions",
+          text: "Failed to update commenting restrictions",
           appearance: "neutral",
         });
       }
-    }
-  } else {
-    if (settings_old) { // Disable
-      logger.form.info(`u/${mod.username} disabled flaired user only mode on ${settings.post_id}`);
-
-      // Cancel scheduled expiration job if active
-      if (settings_old.scheduler_job_id) {
-        await cancelExpiration(settings_old.scheduler_job_id, context);
-      }
-
-      // Send ModMail
-      await notifyMods(context, post, settings_old.conversation_id, {
-        subject: `Flaired User Only Mode Disabled`,
-        body: `u/${mod.username} has disabled flaired user only mode on ` +
-              `[${post.title}](${post.permalink}).`,
-      });
-
-      // Delete Comment
-      if (settings_old.sticky_comment_id) {
-        try {
-          const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
-          await comment.delete();
-        } catch (e) {
-          logger.form.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
-        }
-      }
-
-      try {
-        await clearPostSettings(settings.post_id, context);
-        context.ui.showToast({
-          text: "Commenting permitted from all users",
-          appearance: "success",
-        });
-      } catch {
-        context.ui.showToast({
-          text: "Failed to disable commenting restrictions",
-          appearance: "neutral",
-        });
-      }
-    } else { // Never Enabled
-      logger.form.info(`u/${mod.username} submitted disable on unmonitored post ${settings.post_id}`);
+    } else { // No Change
+      logger.form.info(`u/${mod.username} submitted form on ${settings.post_id} with no changes`);
       context.ui.showToast({
-        text: "Commenting restriction not applied. Did you forget to enable Flaired Only mode?",
+        text: "No changes to commenting restrictions",
         appearance: "neutral",
       });
     }
+  } else { // Enable
+    logger.form.info(`u/${mod.username} enabled flaired user only mode on ${settings.post_id}`);
+
+    // Schedule expiration job if duration is configured
+    if (settings.expiration > 0) {
+      settings.expires_at = Date.now() + settings.expiration * 1000;
+      settings.scheduler_job_id = await scheduleExpiration(settings.post_id, settings.expiration, context);
+    }
+
+    // Send ModMail
+    settings.conversation_id = await notifyMods(context, post, undefined, {
+      subject: `Flaired User Only Mode Enabled`,
+      body: `u/${mod.username} has enabled flaired user only mode on ` +
+            `[${post.title}](${post.permalink}).\n\n` + 
+            `**Configuration**\n\n` +
+            `* **User Flairs:** ${user_flairs_text}\n\n` +
+            `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
+            `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
+            `* **Exclude Author:** ${settings.exclude_author}\n\n` +
+            `* **Removal Reason:** ${removal_reason_text}\n\n` +
+            `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
+            `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
+    });
+
+    // Sticky Comment
+    if (settings.sticky_comment_text) {
+      try {
+        const comment = await context.reddit.submitComment({
+          id: settings.post_id,
+          text: sticky_comment_text,
+        });
+        await comment.distinguish(true); // Distinguish + Sticky
+        settings.sticky_comment_id = comment.id;
+      } catch (e) {
+        logger.form.error(`Error posting sticky comment on ${settings.post_id}`, e);
+      }
+    }
+
+    try {
+      await storePostSettings(settings, context);
+      context.ui.showToast({
+        text: "Commenting restricted to flaired users",
+        appearance: "success",
+      });
+    } catch {
+      context.ui.showToast({
+        text: "Failed to save commenting restrictions",
+        appearance: "neutral",
+      });
+    }
+  }
+}
+
+/**
+ * Confirmation form for removing post restrictions
+ *
+ * Has no fields so disabling does not depend on a form value. Mobile clients
+ * can submit a boolean field's default after it scrolls out of view.
+ */
+export const removeForm = Devvit.createForm(
+  {
+    title: "Remove Flair Restriction",
+    description: "Allow comments from all users on this post?",
+    acceptLabel: "Remove",
+    fields: [],
+  },
+  processRemoveForm
+);
+
+/**
+ * Remove post restrictions after the moderator confirms
+ * @param _event A FormOnSubmitEvent object
+ * @param context A Context object
+ */
+export async function processRemoveForm(_event: FormOnSubmitEvent<JSONObject>, context: Context): Promise<void> {
+  if (!context.postId) {
+    throw new Error("postId missing from context object");
+  }
+  const post_id = context.postId;
+
+  const [settings_old, mod, post] = await Promise.all([
+    getPostSettings(post_id, context),
+    context.reddit.getCurrentUser(),
+    context.reddit.getPostById(post_id),
+  ]);
+
+  if (!mod) {
+    throw new Error("Unable to get current user");
+  }
+
+  if (!settings_old) {
+    logger.form.info(`u/${mod.username} submitted removal on unmonitored post ${post_id}`);
+    context.ui.showToast({
+      text: "Commenting is not restricted on this post",
+      appearance: "neutral",
+    });
+    return;
+  }
+
+  logger.form.info(`u/${mod.username} disabled flaired user only mode on ${post_id}`);
+
+  // Cancel scheduled expiration job if active
+  if (settings_old.scheduler_job_id) {
+    await cancelExpiration(settings_old.scheduler_job_id, context);
+  }
+
+  // Send ModMail
+  await notifyMods(context, post, settings_old.conversation_id, {
+    subject: `Flaired User Only Mode Disabled`,
+    body: `u/${mod.username} has disabled flaired user only mode on ` +
+          `[${post.title}](${post.permalink}).`,
+  });
+
+  // Delete Comment
+  if (settings_old.sticky_comment_id) {
+    try {
+      const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
+      await comment.delete();
+    } catch (e) {
+      logger.form.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);
+    }
+  }
+
+  try {
+    await clearPostSettings(post_id, context);
+    context.ui.showToast({
+      text: "Commenting permitted from all users",
+      appearance: "success",
+    });
+  } catch {
+    context.ui.showToast({
+      text: "Failed to disable commenting restrictions",
+      appearance: "neutral",
+    });
   }
 }
 
