@@ -79,7 +79,6 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
   const settings = await getPostSettings(comment.postId, context);
   if (!settings) {
-    logger.comment.debug(`Skipped ${comment.id}: post ${comment.postId} is not restricted`);
     return;
   }
 
