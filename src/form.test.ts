@@ -199,6 +199,41 @@ describe("form", () => {
         { label: "None", value: "none" },
       ]);
     });
+
+    it("defaults removal_reason to last_removal_reason when present and valid in options", () => {
+      const config = createFormConfig({
+        removal_reasons: mockRemovalReasons,
+        last_removal_reason: "reason_2",
+      });
+      expect(config.fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["reason_2"]);
+    });
+
+    it("defaults removal_reason to none when last_removal_reason is not in options", () => {
+      const config = createFormConfig({
+        removal_reasons: mockRemovalReasons,
+        last_removal_reason: "reason_deleted",
+      });
+      expect(config.fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["none"]);
+    });
+
+    it("defaults removal_reason to none when existing post settings has a removal reason not in options", () => {
+      const config = createFormConfig({
+        settings: {
+          post_id: "t3_post123",
+          is_enabled: true,
+          flairs: ["any"],
+          top_level_only: false,
+          exclude_mods: true,
+          exclude_author: true,
+          removal_reason: "reason_deleted",
+          sticky_comment_text: "",
+          expiration: 0,
+        },
+        removal_reasons: mockRemovalReasons,
+        last_removal_reason: "reason_1",
+      });
+      expect(config.fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["none"]);
+    });
   });
 
   describe("processForm", () => {
@@ -334,6 +369,7 @@ describe("form", () => {
 
         const savedSettings: PostSettings = JSON.parse(redisStore["t3_post123"]);
         expect(savedSettings.is_enabled).toBe(true);
+        expect(redisStore["$last_removal_reason"]).toBe("reason_rules");
         expect(savedSettings.sticky_comment_id).toBe("t1_sticky999");
         expect(savedSettings.conversation_id).toBe("conv_modmail_123");
         expect(savedSettings.scheduler_job_id).toBe("job_scheduled_123");
@@ -352,7 +388,7 @@ describe("form", () => {
       });
 
       it("handles multiple flairs and 'any' flair formatting in ModMail and sticky comment", async () => {
-        const { mockContext } = setupProcessFormContext();
+        const { mockContext, redisStore } = setupProcessFormContext();
 
         const formValues = {
           is_enabled: true,
@@ -366,6 +402,7 @@ describe("form", () => {
 
         await processForm({ values: formValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
+        expect(redisStore["$last_removal_reason"]).toBe("none");
         expect(mockContext.reddit.submitComment).toHaveBeenCalledWith({
           id: "t3_post123",
           text: "Allowed flairs: Any",
@@ -489,7 +526,7 @@ describe("form", () => {
       };
 
       it("edits sticky comment and sends follow-up ModMail when settings are changed", async () => {
-        const { mockContext, showToast, mockComment } = setupProcessFormContext({
+        const { mockContext, showToast, mockComment, redisStore } = setupProcessFormContext({
           initialSettings: oldSettings,
         });
 
@@ -498,13 +535,14 @@ describe("form", () => {
           flairs: ["flair_1", "flair_2"],
           top_level_only: true, // changed
           exclude_mods: true,
-          removal_reason: ["none"],
+          removal_reason: ["reason_rules"], // changed
           sticky_comment_text: "Updated sticky text %%flair%%", // changed
           expiration: ["3600"],
         };
 
         await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
+        expect(redisStore["$last_removal_reason"]).toBe("reason_rules");
         expect(mockComment.edit).toHaveBeenCalledWith({
           text: "Updated sticky text `VIP`, `Approved`",
         });

@@ -86,3 +86,35 @@ export async function storeModerators(moderators: string[], context: TriggerCont
     logger.modlist.error("Error writing moderators to Redis", e);
   }
 }
+
+/** Redis key for remembering the last selected removal reason across the subreddit */
+export const LAST_REMOVAL_REASON_KEY = "$last_removal_reason";
+
+/**
+ * Read the last selected removal reason ID from Redis
+ * @param context A Context object
+ * @returns A promise that resolves to the removal reason ID string or undefined
+ */
+export async function getLastRemovalReason(context: Context): Promise<string | undefined> {
+  try {
+    const reason = await context.redis.get(LAST_REMOVAL_REASON_KEY);
+    return reason ?? undefined;
+  } catch (e) {
+    logger.storage.error("Error reading last removal reason from Redis", e);
+    return undefined;
+  }
+}
+
+/**
+ * Write the last selected removal reason ID to Redis
+ * @param reason The removal reason ID string
+ * @param context A Context object
+ */
+export async function storeLastRemovalReason(reason: string, context: Context): Promise<void> {
+  try {
+    await context.redis.set(LAST_REMOVAL_REASON_KEY, reason);
+  } catch (e) {
+    logger.storage.error("Error writing last removal reason to Redis", e);
+  }
+}
+

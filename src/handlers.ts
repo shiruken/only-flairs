@@ -2,7 +2,7 @@ import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
 import { AuthorFlair, hasAllowedFlair } from "./flair.js";
-import { clearPostSettings, getModerators, getPostSettings, storeModerators } from "./storage.js";
+import { clearPostSettings, getLastRemovalReason, getModerators, getPostSettings, storeModerators } from "./storage.js";
 import { cancelExpiration } from "./scheduler.js";
 import { PostSettings } from "./types.js";
 import { logger } from "./logger.js";
@@ -18,11 +18,12 @@ const REMOVE_RETRY_DELAY_MS = 1000;
  */
 export async function showPostRestrictForm(event: MenuItemOnPressEvent, context: Context): Promise<void> {
   logger.form.info(`Opening restriction settings form for ${event.targetId}`);
-  const [post, subreddit, rawSettings, sticky_comment_text_default] = await Promise.all([
+  const [post, subreddit, rawSettings, sticky_comment_text_default, last_removal_reason] = await Promise.all([
     context.reddit.getPostById(event.targetId),
     context.reddit.getCurrentSubredditName(),
     getPostSettings(event.targetId, context), // Current settings for post
     context.settings.get<string>("sticky_comment_text_default"),
+    getLastRemovalReason(context),
   ]);
 
   if (post.authorName === '[deleted]' || post.removedByCategory === 'deleted') {
@@ -49,6 +50,7 @@ export async function showPostRestrictForm(event: MenuItemOnPressEvent, context:
     sticky_comment_text_default: sticky_comment_text_default ?? '',
     flairs: JSON.stringify(flairs),
     removal_reasons: removal_reasons,
+    last_removal_reason: last_removal_reason ?? '',
   };
   context.ui.showForm(form, data);
 }

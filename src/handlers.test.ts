@@ -35,7 +35,11 @@ describe("handlers", () => {
           get: vi.fn().mockResolvedValue("Default sticky text"),
         },
         redis: {
-          get: vi.fn().mockResolvedValue(JSON.stringify(mockPostSettings)),
+          get: vi.fn().mockImplementation((key: string) => {
+            if (key === "t3_post123") return Promise.resolve(JSON.stringify(mockPostSettings));
+            if (key === "$last_removal_reason") return Promise.resolve("reason_xyz");
+            return Promise.resolve(null);
+          }),
         },
         ui: {
           showForm,
@@ -51,6 +55,7 @@ describe("handlers", () => {
       expect(mockContext.reddit.getPostById).toHaveBeenCalledWith("t3_post123");
       expect(mockContext.reddit.getCurrentSubredditName).toHaveBeenCalled();
       expect(mockContext.redis.get).toHaveBeenCalledWith("t3_post123");
+      expect(mockContext.redis.get).toHaveBeenCalledWith("$last_removal_reason");
       expect(mockContext.settings.get).toHaveBeenCalledWith("sticky_comment_text_default");
       expect(mockContext.reddit.getUserFlairTemplates).toHaveBeenCalledWith("testsubreddit");
       expect(mockContext.reddit.getSubredditRemovalReasons).toHaveBeenCalledWith("testsubreddit");
@@ -59,6 +64,7 @@ describe("handlers", () => {
         sticky_comment_text_default: "Default sticky text",
         flairs: JSON.stringify([{ id: "flair_abc", text: "Verified" }]),
         removal_reasons: [{ id: "reason_xyz", title: "No flair" }],
+        last_removal_reason: "reason_xyz",
       });
     });
 
@@ -93,6 +99,7 @@ describe("handlers", () => {
         sticky_comment_text_default: "",
         flairs: "[]",
         removal_reasons: [],
+        last_removal_reason: "",
       });
     });
 
@@ -113,7 +120,10 @@ describe("handlers", () => {
           get: vi.fn().mockResolvedValue(undefined),
         },
         redis: {
-          get: vi.fn().mockResolvedValue(JSON.stringify(expiredSettings)),
+          get: vi.fn().mockImplementation((key: string) => {
+            if (key === "t3_post123") return Promise.resolve(JSON.stringify(expiredSettings));
+            return Promise.resolve(null);
+          }),
         },
         ui: {
           showForm,
@@ -131,6 +141,7 @@ describe("handlers", () => {
         sticky_comment_text_default: "",
         flairs: "[]",
         removal_reasons: [],
+        last_removal_reason: "",
       });
     });
 

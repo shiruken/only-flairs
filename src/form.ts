@@ -1,7 +1,7 @@
 import { Context, Devvit, FlairTemplate, FormOnSubmitEvent, JobContext, JSONObject, Post, RemovalReason } from "@devvit/public-api";
 import { FieldConfig_Selection_Item } from '@devvit/protos';
 import { PostSettings } from "./types.js";
-import { clearPostSettings, getPostSettings, storePostSettings } from "./storage.js";
+import { clearPostSettings, getPostSettings, storeLastRemovalReason, storePostSettings } from "./storage.js";
 import { parseFormValues } from "./parse.js";
 import { cancelExpiration, scheduleExpiration } from "./scheduler.js";
 import { logger } from "./logger.js";
@@ -57,6 +57,16 @@ export function createFormConfig(data: any) {
     });
   const expiration_default = Object.keys(DURATIONS).slice(-1); // 30 days
 
+  // Determine default value for `removal_reason` field
+  let default_removal_reason = "none";
+  if (settings && settings.removal_reason) {
+    if (removal_reason_options.some(opt => opt.value === settings.removal_reason)) {
+      default_removal_reason = settings.removal_reason;
+    }
+  } else if (data.last_removal_reason && removal_reason_options.some(opt => opt.value === data.last_removal_reason)) {
+    default_removal_reason = data.last_removal_reason;
+  }
+
   return {
     title: "Restrict to Flaired Users",
     description: "Restrict commenting on this post to only flaired users",
@@ -108,7 +118,7 @@ export function createFormConfig(data: any) {
         required: true,
         multiSelect: false,
         options: removal_reason_options,
-        defaultValue: [ (settings && settings.removal_reason) ? settings.removal_reason : "none" ],
+        defaultValue: [ default_removal_reason ],
       },
       {
         name: "sticky_comment_text",
@@ -289,6 +299,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
 
         try {
           await storePostSettings(settings, context);
+          await storeLastRemovalReason(settings.removal_reason, context);
           context.ui.showToast({
             text: "Commenting restrictions updated",
             appearance: "success",
@@ -346,6 +357,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
 
       try {
         await storePostSettings(settings, context);
+        await storeLastRemovalReason(settings.removal_reason, context);
         context.ui.showToast({
           text: "Commenting restricted to flaired users",
           appearance: "success",

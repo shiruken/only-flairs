@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   clearPostSettings,
+  getLastRemovalReason,
   getModerators,
   getPostSettings,
   INDEFINITE_POST_TTL_SECONDS,
+  LAST_REMOVAL_REASON_KEY,
   MODERATOR_CACHE_TTL_SECONDS,
   REDIS_EXPIRATION_GRACE_SECONDS,
+  storeLastRemovalReason,
   storeModerators,
   storePostSettings,
 } from "./storage.js";
@@ -161,4 +164,62 @@ describe("storage", () => {
       ).resolves.toBeUndefined();
     });
   });
+
+  describe("getLastRemovalReason", () => {
+    it("returns removal reason string if found in Redis", async () => {
+      const get = vi.fn().mockResolvedValue("reason_abc");
+      const mockContext = {
+        redis: { get },
+      } as unknown as Context;
+
+      const result = await getLastRemovalReason(mockContext);
+      expect(get).toHaveBeenCalledWith(LAST_REMOVAL_REASON_KEY);
+      expect(result).toBe("reason_abc");
+    });
+
+    it("returns undefined if key is not found in Redis", async () => {
+      const get = vi.fn().mockResolvedValue(null);
+      const mockContext = {
+        redis: { get },
+      } as unknown as Context;
+
+      const result = await getLastRemovalReason(mockContext);
+      expect(get).toHaveBeenCalledWith(LAST_REMOVAL_REASON_KEY);
+      expect(result).toBeUndefined();
+    });
+
+    it("catches and logs redis read error, returning undefined", async () => {
+      const get = vi.fn().mockRejectedValue(new Error("Redis get error"));
+      const mockContext = {
+        redis: { get },
+      } as unknown as Context;
+
+      const result = await getLastRemovalReason(mockContext);
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("storeLastRemovalReason", () => {
+    it("stores removal reason in Redis without expiration", async () => {
+      const set = vi.fn().mockResolvedValue("OK");
+      const mockContext = {
+        redis: { set },
+      } as unknown as Context;
+
+      await storeLastRemovalReason("reason_xyz", mockContext);
+      expect(set).toHaveBeenCalledWith(LAST_REMOVAL_REASON_KEY, "reason_xyz");
+    });
+
+    it("catches and logs redis store error without throwing", async () => {
+      const set = vi.fn().mockRejectedValue(new Error("Redis set error"));
+      const mockContext = {
+        redis: { set },
+      } as unknown as Context;
+
+      await expect(
+        storeLastRemovalReason("reason_xyz", mockContext)
+      ).resolves.toBeUndefined();
+    });
+  });
 });
+
