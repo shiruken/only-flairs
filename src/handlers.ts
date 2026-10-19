@@ -1,7 +1,7 @@
 import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
-import { AuthorFlair, hasAllowedFlair } from "./flair.js";
+import { AuthorFlair, formatFlair, hasAllowedFlair } from "./flair.js";
 import { clearPostSettings, getLastRemovalReason, getModerators, getPostSettings, storeModerators } from "./storage.js";
 import { cancelExpiration } from "./scheduler.js";
 import { PostSettings } from "./types.js";
@@ -137,18 +137,24 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
 
   let flair: AuthorFlair | undefined = author.flair;
   let commentAPI: Comment | undefined;
-  if (!flair || (!flair.text && !flair.templateId)) {
+  if (!flair || (!flair.text?.trim() && !flair.templateId?.trim())) {
     // Event data usually omits flair, so fetch comment via API to inspect authorFlair
     logger.comment.debug(`Author flair missing from event payload on ${comment.id}. Checking via API.`);
     commentAPI = await context.reddit.getCommentById(comment.id);
     flair = commentAPI.authorFlair;
+  } else {
+    logger.comment.debug(`Author flair found in event payload on ${comment.id}: ${formatFlair(flair)}`);
   }
 
   if (!hasAllowedFlair(flair, settings.flairs)) {
-    logger.comment.info(`Removing ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair)`);
+    logger.comment.info(
+      `Removing ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair, author flair: ${formatFlair(flair)})`
+    );
     await removeComment(comment.id, author.name, settings, context, commentAPI);
   } else {
-    logger.comment.info(`Allowed ${comment.id} by u/${author.name} on ${comment.postId} (matched flair)`);
+    logger.comment.info(
+      `Allowed ${comment.id} by u/${author.name} on ${comment.postId} (matched flair: ${formatFlair(flair)})`
+    );
   }
 }
 

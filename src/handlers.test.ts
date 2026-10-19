@@ -671,6 +671,22 @@ describe("handlers", () => {
         expect(remove).not.toHaveBeenCalled();
       });
 
+      it("fetches comment from API when author flair has whitespace-only text and templateId", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: { templateId: "flair_allowed", text: "Allowed" },
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "regular_user", flair: { text: "   ", templateId: "   " } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).not.toHaveBeenCalled();
+      });
+
       it("removes comment when author flair is disallowed and sets removal note", async () => {
         const { mockContext, remove, addRemovalNote } = setupCommentContext({
           settings: baseSettings,

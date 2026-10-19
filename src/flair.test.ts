@@ -1,5 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { hasAllowedFlair } from "./flair.js";
+import { formatFlair, hasAllowedFlair } from "./flair.js";
+
+describe("formatFlair", () => {
+  test("formats undefined flair as 'none'", () => {
+    expect(formatFlair(undefined)).toBe("none");
+  });
+
+  test("formats flair with both text and templateId", () => {
+    expect(formatFlair({ text: "Biology", templateId: "t1" })).toBe('text="Biology", templateId="t1"');
+  });
+
+  test("formats flair with missing text or templateId as empty string", () => {
+    expect(formatFlair({ text: "Biology" })).toBe('text="Biology", templateId=""');
+    expect(formatFlair({ templateId: "t1" })).toBe('text="", templateId="t1"');
+    expect(formatFlair({})).toBe('text="", templateId=""');
+  });
+});
 
 describe("hasAllowedFlair", () => {
   test("rejects missing flair", () => {
@@ -9,6 +25,12 @@ describe("hasAllowedFlair", () => {
   test("rejects empty flair", () => {
     expect(hasAllowedFlair({ text: "", templateId: "" }, [ "any" ])).toBe(false);
     expect(hasAllowedFlair({}, [ "any" ])).toBe(false);
+  });
+
+  test("rejects whitespace-only flair", () => {
+    expect(hasAllowedFlair({ text: "   ", templateId: "   " }, [ "any" ])).toBe(false);
+    expect(hasAllowedFlair({ text: "   " }, [ "any" ])).toBe(false);
+    expect(hasAllowedFlair({ templateId: "   " }, [ "any" ])).toBe(false);
   });
 
   test("accepts any flair when 'any' is allowed", () => {
@@ -21,6 +43,10 @@ describe("hasAllowedFlair", () => {
 
   test("accepts listed template", () => {
     expect(hasAllowedFlair({ text: "Biology", templateId: "t1" }, [ "t1", "t2" ])).toBe(true);
+  });
+
+  test("accepts listed template with whitespace surrounding templateId", () => {
+    expect(hasAllowedFlair({ text: "Biology", templateId: "  t1  " }, [ "t1", "t2" ])).toBe(true);
   });
 
   test("rejects unlisted template", () => {
