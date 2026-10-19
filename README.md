@@ -36,7 +36,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 * **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
 * **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
 * **Exclude Author:** Exclude the post author from comment restrictions
-* **Removal Reason:** Subreddit removal reason to use on actioned comments. Select 'None' to specify no removal reason.
+* **Removal Reason:** Subreddit removal reason to use on actioned comments. Defaults to the last selected removal reason across the subreddit. Select 'None' to specify no removal reason.
 * **Sticky Comment:** Text for the sticky comment on the post. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Defaults to the value defined in the installation settings.
 * **Expiration:** Automatically disable comment restrictions after selected duration
 
@@ -69,6 +69,7 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 * v0.6
+  * Remember the last selected removal reason across the subreddit when configuring new posts
   * Add option to exclude post author from comment restrictions
   * Modmail notifications are now routed to the Notifications tab rather than the Inbox
   * Support multiple `%%flair%%` placeholders in sticky comments
