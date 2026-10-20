@@ -6,6 +6,8 @@ export type AuthorFlair = {
   text?: string | undefined;
   /** Flair template ID */
   templateId?: string | undefined;
+  /** Subreddit ID the flair belongs to */
+  subredditId?: string | undefined;
 };
 
 /**
@@ -18,6 +20,25 @@ export function formatFlair(flair: AuthorFlair | undefined): string {
     return "none";
   }
   return `text="${flair.text ?? ""}", templateId="${flair.templateId ?? ""}"`;
+}
+
+/**
+ * Check whether an author flair belongs to the current subreddit.
+ * Normalizes both IDs by stripping any leading 't5_' prefix and comparing case-insensitively.
+ * @param flairSubredditId Subreddit ID from author flair (may or may not have 't5_')
+ * @param currentSubredditId Current subreddit ID (typically has 't5_')
+ * @returns `true` if both IDs are defined and match
+ */
+export function isMatchingSubreddit(
+  flairSubredditId: string | undefined,
+  currentSubredditId: string | undefined
+): boolean {
+  if (!flairSubredditId || !currentSubredditId) {
+    return false;
+  }
+  const cleanFlair = flairSubredditId.replace(/^t5_/i, "").toLowerCase();
+  const cleanCurrent = currentSubredditId.replace(/^t5_/i, "").toLowerCase();
+  return cleanFlair !== "" && cleanFlair === cleanCurrent;
 }
 
 /**

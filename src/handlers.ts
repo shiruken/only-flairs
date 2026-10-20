@@ -1,7 +1,7 @@
 import { Comment, Context, MenuItemOnPressEvent, TriggerContext } from "@devvit/public-api";
 import { AppInstall, AppUpgrade, ModAction, CommentSubmit } from '@devvit/protos';
 import { form } from "./form.js";
-import { AuthorFlair, formatFlair, hasAllowedFlair } from "./flair.js";
+import { AuthorFlair, formatFlair, hasAllowedFlair, isMatchingSubreddit } from "./flair.js";
 import { clearPostSettings, getLastRemovalReason, getModerators, getPostSettings, storeModerators } from "./storage.js";
 import { cancelExpiration } from "./scheduler.js";
 import { PostSettings } from "./types.js";
@@ -135,11 +135,19 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
     }
   }
 
+  const currentSubredditId = context.subredditId ?? event.subreddit?.id;
+
   let flair: AuthorFlair | undefined = author.flair;
   let commentAPI: Comment | undefined;
   if (!flair || (!flair.text?.trim() && !flair.templateId?.trim())) {
     // Event data usually omits flair, so fetch comment via API to inspect authorFlair
     logger.comment.debug(`Author flair missing from event payload on ${comment.id}. Checking via API.`);
+    commentAPI = await context.reddit.getCommentById(comment.id);
+    flair = commentAPI.authorFlair;
+  } else if (!isMatchingSubreddit(flair.subredditId, currentSubredditId)) {
+    logger.comment.warn(
+      `Author flair in event payload on ${comment.id} does not match current subreddit (flair subreddit: "${flair.subredditId ?? ''}", expected: "${currentSubredditId ?? ''}"). Checking via API.`
+    );
     commentAPI = await context.reddit.getCommentById(comment.id);
     flair = commentAPI.authorFlair;
   } else {

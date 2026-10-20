@@ -287,6 +287,7 @@ describe("handlers", () => {
       settings?: PostSettings;
       cachedMods?: string | null;
       appSlug?: string;
+      subredditId?: string;
       commentRemoveMock?: any;
       commentAddRemovalNoteMock?: any;
       apiAuthorFlair?: { text?: string; templateId?: string };
@@ -315,6 +316,7 @@ describe("handlers", () => {
 
       const mockContext = {
         appSlug: options?.appSlug ?? "only-flairs",
+        subredditId: options?.subredditId ?? "t5_testsub",
         redis: {
           get: vi.fn().mockImplementation(async (key: string) => redisStore[key] ?? null),
           set: vi.fn().mockImplementation(async (key: string, val: string) => {
@@ -630,13 +632,110 @@ describe("handlers", () => {
         const { mockContext, remove } = setupCommentContext({ settings: baseSettings });
         const event = {
           comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
-          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed" } },
+          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed", subredditId: "t5_testsub" } },
         } as CommentSubmit;
 
         await checkComment(event, mockContext);
 
         expect(remove).not.toHaveBeenCalled();
         expect(mockContext.reddit.getCommentById).not.toHaveBeenCalled();
+      });
+
+      it("allows comment when author flair has matching subredditId without t5_ prefix in event payload", async () => {
+        const { mockContext, remove } = setupCommentContext({ settings: baseSettings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed", subredditId: "testsub" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).not.toHaveBeenCalled();
+        expect(mockContext.reddit.getCommentById).not.toHaveBeenCalled();
+      });
+
+      it("falls back to API when author flair in event payload is from a different subreddit", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: undefined,
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "cross_sub_user", flair: { templateId: "flair_allowed", text: "Allowed", subredditId: "t5_other_sub" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).toHaveBeenCalled();
+      });
+
+      it("falls back to API and allows comment when event author flair belongs to another subreddit but user has valid flair via API", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: { templateId: "flair_allowed", text: "Allowed" },
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "user_with_leak", flair: { templateId: "foreign_flair", text: "Foreign", subredditId: "t5_other_sub" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).not.toHaveBeenCalled();
+      });
+
+      it("falls back to API when author flair in event payload has missing subredditId", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: undefined,
+        });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).toHaveBeenCalled();
+      });
+
+      it("uses event.subreddit.id when context.subredditId is undefined", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+        });
+        delete (mockContext as any).subredditId;
+
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          subreddit: { id: "testsub" },
+          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed", subredditId: "testsub" } },
+        } as unknown as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(remove).not.toHaveBeenCalled();
+        expect(mockContext.reddit.getCommentById).not.toHaveBeenCalled();
+      });
+
+      it("falls back to API when both context.subredditId and event.subreddit are undefined", async () => {
+        const { mockContext, remove } = setupCommentContext({
+          settings: baseSettings,
+          apiAuthorFlair: undefined,
+        });
+        delete (mockContext as any).subredditId;
+
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "regular_user", flair: { templateId: "flair_allowed", text: "Allowed", subredditId: "testsub" } },
+        } as unknown as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(remove).toHaveBeenCalled();
       });
 
       it("fetches comment from API when author flair is missing from event", async () => {
@@ -693,7 +792,7 @@ describe("handlers", () => {
         });
         const event = {
           comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
-          author: { name: "unflaired_user", flair: { templateId: "other_flair", text: "Other" } },
+          author: { name: "unflaired_user", flair: { templateId: "other_flair", text: "Other", subredditId: "t5_testsub" } },
         } as CommentSubmit;
 
         await checkComment(event, mockContext);

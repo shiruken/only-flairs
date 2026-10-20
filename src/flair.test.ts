@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatFlair, hasAllowedFlair } from "./flair.js";
+import { formatFlair, hasAllowedFlair, isMatchingSubreddit } from "./flair.js";
 
 describe("formatFlair", () => {
   test("formats undefined flair as 'none'", () => {
@@ -55,5 +55,37 @@ describe("hasAllowedFlair", () => {
 
   test("rejects free-text flair when specific templates are required", () => {
     expect(hasAllowedFlair({ text: "Custom", templateId: "" }, [ "t1" ])).toBe(false);
+  });
+});
+
+describe("isMatchingSubreddit", () => {
+  test("returns false when flairSubredditId is undefined or empty", () => {
+    expect(isMatchingSubreddit(undefined, "t5_sub123")).toBe(false);
+    expect(isMatchingSubreddit("", "t5_sub123")).toBe(false);
+  });
+
+  test("returns false when currentSubredditId is undefined or empty", () => {
+    expect(isMatchingSubreddit("t5_sub123", undefined)).toBe(false);
+    expect(isMatchingSubreddit("t5_sub123", "")).toBe(false);
+  });
+
+  test("returns true when IDs match with identical t5_ prefixes", () => {
+    expect(isMatchingSubreddit("t5_sub123", "t5_sub123")).toBe(true);
+  });
+
+  test("returns true when IDs match with differing t5_ prefixes", () => {
+    expect(isMatchingSubreddit("sub123", "t5_sub123")).toBe(true);
+    expect(isMatchingSubreddit("t5_sub123", "sub123")).toBe(true);
+    expect(isMatchingSubreddit("sub123", "sub123")).toBe(true);
+  });
+
+  test("returns true when IDs match with case differences", () => {
+    expect(isMatchingSubreddit("T5_Sub123", "t5_sub123")).toBe(true);
+    expect(isMatchingSubreddit("SUB123", "t5_sub123")).toBe(true);
+  });
+
+  test("returns false when IDs do not match", () => {
+    expect(isMatchingSubreddit("t5_sub123", "t5_other")).toBe(false);
+    expect(isMatchingSubreddit("sub123", "t5_other")).toBe(false);
   });
 });
