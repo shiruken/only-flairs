@@ -8,8 +8,8 @@ export const REDIS_EXPIRATION_GRACE_SECONDS = 86400;
 /** Fallback TTL (in seconds) for posts with indefinite (0) expiration (~180 days) */
 export const INDEFINITE_POST_TTL_SECONDS = 180 * 24 * 60 * 60;
 
-/** Time-to-live (in seconds) for cached moderator list to self-heal missed webhooks (2 hours) */
-export const MODERATOR_CACHE_TTL_SECONDS = 7200;
+/** Time-to-live (in seconds) for cached moderator list to self-heal missed webhooks (24 hours) */
+export const MODERATOR_CACHE_TTL_SECONDS = 86400;
 
 /**
  * Write {@link PostSettings} object for a post in Redis
