@@ -8,6 +8,7 @@ const BASE = {
   top_level_only: [ "no" ],
   exclude_mods: [ "yes" ],
   exclude_author: [ "yes" ],
+  filter_only: [ "no" ],
   removal_reason: [ "none" ],
   expiration: [ "2592000" ],
 };
@@ -37,6 +38,7 @@ describe("parseFormValues", () => {
       top_level_only: false,
       exclude_mods: true,
       exclude_author: true,
+      filter_only: false,
       expiration: 2592000,
       removal_reason: "none",
       sticky_comment_text: "",
@@ -55,13 +57,14 @@ describe("parseFormValues", () => {
 
   test("parses disabled and yes/no flags", () => {
     const settings = parseFormValues(
-      { ...BASE, is_enabled: [ "disabled" ], top_level_only: [ "yes" ], exclude_mods: [ "no" ], exclude_author: [ "no" ] },
+      { ...BASE, is_enabled: [ "disabled" ], top_level_only: [ "yes" ], exclude_mods: [ "no" ], exclude_author: [ "no" ], filter_only: [ "yes" ] },
       "t3_abc",
     );
     expect(settings.is_enabled).toBe(false);
     expect(settings.top_level_only).toBe(true);
     expect(settings.exclude_mods).toBe(false);
     expect(settings.exclude_author).toBe(false);
+    expect(settings.filter_only).toBe(true);
   });
 
   test("parses native boolean toggle submissions", () => {
@@ -71,6 +74,7 @@ describe("parseFormValues", () => {
       top_level_only: true,
       exclude_mods: false,
       exclude_author: true,
+      filter_only: true,
       removal_reason: [ "none" ],
       expiration: [ "2592000" ],
     };
@@ -79,6 +83,7 @@ describe("parseFormValues", () => {
     expect(settings.top_level_only).toBe(true);
     expect(settings.exclude_mods).toBe(false);
     expect(settings.exclude_author).toBe(true);
+    expect(settings.filter_only).toBe(true);
   });
 
   test("defaults empty flair selection to any", () => {
@@ -141,6 +146,7 @@ describe("parseFormValues", () => {
       removal_reason: [ "none" ],
       exclude_mods: [ "yes" ],
       exclude_author: [ "yes" ],
+      filter_only: [ "no" ],
       flairs: [ "any" ],
       top_level_only: [ "no" ],
       is_enabled: [ "enabled" ],

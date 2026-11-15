@@ -10,6 +10,8 @@ import { logger } from "./logger.js";
 // Comment removal retry behavior
 const REMOVE_ATTEMPTS = 2;
 const REMOVE_RETRY_DELAY_MS = 1000;
+const FILTER_ATTEMPTS = 2;
+const FILTER_RETRY_DELAY_MS = 1000;
 
 /**
  * Shows form to adjust post restriction settings
@@ -155,14 +157,55 @@ export async function checkComment(event: CommentSubmit, context: TriggerContext
   }
 
   if (!hasAllowedFlair(flair, settings.flairs)) {
-    logger.comment.info(
-      `Removing ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair, author flair: ${formatFlair(flair)})`
-    );
-    await removeComment(comment.id, author.name, settings, context, commentAPI);
+    if (settings.filter_only) {
+      logger.comment.info(
+        `Filtering ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair, author flair: ${formatFlair(flair)})`
+      );
+      await filterComment(comment.id, author.name, context, commentAPI);
+    } else {
+      logger.comment.info(
+        `Removing ${comment.id} by u/${author.name} on ${comment.postId} (missing required flair, author flair: ${formatFlair(flair)})`
+      );
+      await removeComment(comment.id, author.name, settings, context, commentAPI);
+    }
   } else {
     logger.comment.info(
       `Allowed ${comment.id} by u/${author.name} on ${comment.postId} (matched flair: ${formatFlair(flair)})`
     );
+  }
+}
+
+/**
+ * Filter a comment to the moderation queue, retrying once
+ * @param comment_id A Reddit comment ID (including `t1_` prefix)
+ * @param author_name Username of the comment author
+ * @param context A TriggerContext object
+ * @param existingComment Optional pre-fetched {@link Comment} object to reuse
+ */
+async function filterComment(
+  comment_id: string,
+  author_name: string,
+  context: TriggerContext,
+  existingComment?: Comment
+): Promise<void> {
+  let commentAPI: Comment | undefined = existingComment;
+  for (let attempt = 1; attempt <= FILTER_ATTEMPTS; attempt++) {
+    try {
+      if (!commentAPI) {
+        commentAPI = await context.reddit.getCommentById(comment_id);
+      }
+      await commentAPI.filter({
+        reason: "Commenting restricted to flaired users",
+      });
+      logger.comment.info(`Filtered ${comment_id} by u/${author_name}`);
+      break;
+    } catch (e) {
+      commentAPI = undefined;
+      logger.comment.error(`Error filtering ${comment_id} by u/${author_name} (attempt ${attempt}/${FILTER_ATTEMPTS})`, e);
+      if (attempt < FILTER_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, FILTER_RETRY_DELAY_MS));
+      }
+    }
   }
 }
 

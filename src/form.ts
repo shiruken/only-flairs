@@ -111,9 +111,16 @@ export function createFormConfig(data: any) {
         defaultValue: settings?.exclude_author ?? true,
       },
       {
+        name: "filter_only",
+        label: "Filter to ModQueue",
+        helpText: "Filter comments for moderator review instead of removing them",
+        type: "boolean" as const,
+        defaultValue: settings?.filter_only ?? false,
+      },
+      {
         name: "removal_reason",
         label: "Removal Reason",
-        helpText: "Subreddit removal reason to use on actioned comments",
+        helpText: "Subreddit removal reason to use on removed comments",
         type: "select" as const,
         required: true,
         multiSelect: false,
@@ -260,6 +267,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
                 `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
                 `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
                 `* **Exclude Author:** ${settings.exclude_author}\n\n` +
+                `* **Filter to ModQueue:** ${settings.filter_only}\n\n` +
                 `* **Removal Reason:** ${removal_reason_text}\n\n` +
                 `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
                 `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,
@@ -336,6 +344,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
               `* **Only Restrict Top-Level Comments:** ${settings.top_level_only}\n\n` +
               `* **Exclude Moderators:** ${settings.exclude_mods}\n\n` +
               `* **Exclude Author:** ${settings.exclude_author}\n\n` +
+              `* **Filter to ModQueue:** ${settings.filter_only}\n\n` +
               `* **Removal Reason:** ${removal_reason_text}\n\n` +
               `* **Expiration:** ${DURATIONS[settings.expiration]}\n\n` +
               `* **Sticky Comment:** ${settings.sticky_comment_text ? quoteText(sticky_comment_text) : "None"}`,

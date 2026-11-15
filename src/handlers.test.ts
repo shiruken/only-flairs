@@ -289,6 +289,7 @@ describe("handlers", () => {
       appSlug?: string;
       subredditId?: string;
       commentRemoveMock?: any;
+      commentFilterMock?: any;
       commentAddRemovalNoteMock?: any;
       apiAuthorFlair?: { text?: string; templateId?: string };
     }) {
@@ -305,12 +306,14 @@ describe("handlers", () => {
       }
 
       const remove = options?.commentRemoveMock ?? vi.fn().mockResolvedValue(undefined);
+      const filter = options?.commentFilterMock ?? vi.fn().mockResolvedValue(undefined);
       const addRemovalNote = options?.commentAddRemovalNoteMock ?? vi.fn().mockResolvedValue(undefined);
 
       const mockCommentAPI = {
         id: "t1_comm100",
         authorFlair: options?.apiAuthorFlair,
         remove,
+        filter,
         addRemovalNote,
       } as unknown as Comment;
 
@@ -339,7 +342,7 @@ describe("handlers", () => {
         },
       } as unknown as TriggerContext;
 
-      return { mockContext, mockCommentAPI, remove, addRemovalNote, redisStore };
+      return { mockContext, mockCommentAPI, remove, filter, addRemovalNote, redisStore };
     }
 
     it("throws error when comment object is missing from event", async () => {
@@ -901,6 +904,105 @@ describe("handlers", () => {
         await expect(checkComment(event, mockContext)).resolves.toBeUndefined();
         expect(remove).toHaveBeenCalled();
         expect(addRemovalNote).toHaveBeenCalled();
+      });
+
+      it("filters comment to ModQueue when filter_only is true and author lacks allowed flair", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          filter_only: true,
+        };
+        const { mockContext, remove, filter, addRemovalNote } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "unflaired_user", flair: undefined },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(filter).toHaveBeenCalledTimes(1);
+        expect(filter).toHaveBeenCalledWith({
+          reason: "Commenting restricted to flaired users",
+        });
+        expect(remove).not.toHaveBeenCalled();
+        expect(addRemovalNote).not.toHaveBeenCalled();
+      });
+
+      it("fetches comment via API and filters when author flair was verified via event payload", async () => {
+        const settings: PostSettings = {
+          ...baseSettings,
+          filter_only: true,
+        };
+        const { mockContext, remove, filter, addRemovalNote } = setupCommentContext({ settings });
+        const event = {
+          comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+          author: { name: "disallowed_user", flair: { templateId: "wrong_flair", text: "Wrong", subredditId: "t5_testsub" } },
+        } as CommentSubmit;
+
+        await checkComment(event, mockContext);
+
+        expect(mockContext.reddit.getCommentById).toHaveBeenCalledWith("t1_c1");
+        expect(filter).toHaveBeenCalledWith({
+          reason: "Commenting restricted to flaired users",
+        });
+        expect(remove).not.toHaveBeenCalled();
+        expect(addRemovalNote).not.toHaveBeenCalled();
+      });
+
+      it("retries filtering once if first attempt fails", async () => {
+        vi.useFakeTimers();
+        try {
+          const filter = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("Transient API error"))
+            .mockResolvedValueOnce(undefined);
+
+          const { mockContext, remove, addRemovalNote } = setupCommentContext({
+            settings: { ...baseSettings, filter_only: true },
+            commentFilterMock: filter,
+          });
+
+          const event = {
+            comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+            author: { name: "unflaired_user", flair: undefined },
+          } as CommentSubmit;
+
+          const promise = checkComment(event, mockContext);
+          await vi.advanceTimersByTimeAsync(1000);
+          await promise;
+
+          expect(filter).toHaveBeenCalledTimes(2);
+          expect(remove).not.toHaveBeenCalled();
+          expect(addRemovalNote).not.toHaveBeenCalled();
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it("does not throw if all filtering attempts fail", async () => {
+        vi.useFakeTimers();
+        try {
+          const filter = vi.fn().mockRejectedValue(new Error("Permanent API failure"));
+
+          const { mockContext, remove, addRemovalNote } = setupCommentContext({
+            settings: { ...baseSettings, filter_only: true },
+            commentFilterMock: filter,
+          });
+
+          const event = {
+            comment: { id: "t1_c1", postId: "t3_post100", parentId: "t3_post100" },
+            author: { name: "unflaired_user", flair: undefined },
+          } as CommentSubmit;
+
+          const promise = checkComment(event, mockContext);
+          await vi.advanceTimersByTimeAsync(1000);
+          await promise;
+
+          expect(filter).toHaveBeenCalledTimes(2);
+          expect(remove).not.toHaveBeenCalled();
+          expect(addRemovalNote).not.toHaveBeenCalled();
+        } finally {
+          vi.useRealTimers();
+        }
       });
     });
   });

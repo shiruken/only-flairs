@@ -26,6 +26,7 @@ describe("form", () => {
       top_level_only: false,
       exclude_mods: true,
       exclude_author: true,
+      filter_only: false,
       expiration: 3600,
       removal_reason: "none",
       sticky_comment_text: "Sticky text %%flair%%",
@@ -48,6 +49,7 @@ describe("form", () => {
         top_level_only: baseSettings.top_level_only,
         exclude_mods: baseSettings.exclude_mods,
         exclude_author: baseSettings.exclude_author,
+        filter_only: baseSettings.filter_only,
         expiration: baseSettings.expiration,
         removal_reason: baseSettings.removal_reason,
         sticky_comment_text: baseSettings.sticky_comment_text,
@@ -62,6 +64,7 @@ describe("form", () => {
     });
 
     it("returns true when a boolean setting differs", () => {
+      expect(hasSettingsChanged({ ...baseSettings, filter_only: true }, baseSettings)).toBe(true);
       expect(hasSettingsChanged({ ...baseSettings, exclude_author: false }, baseSettings)).toBe(true);
       expect(hasSettingsChanged({ ...baseSettings, exclude_mods: false }, baseSettings)).toBe(true);
       expect(hasSettingsChanged({ ...baseSettings, top_level_only: true }, baseSettings)).toBe(true);
@@ -83,6 +86,10 @@ describe("form", () => {
       const legacyOld = { ...baseSettings };
       delete (legacyOld as any).exclude_author;
       expect(hasSettingsChanged(baseSettings, legacyOld)).toBe(true);
+
+      const legacyWithoutFilter = { ...baseSettings };
+      delete (legacyWithoutFilter as any).filter_only;
+      expect(hasSettingsChanged(baseSettings, legacyWithoutFilter)).toBe(true);
     });
   });
 
@@ -127,6 +134,7 @@ describe("form", () => {
       expect(topLevelField?.defaultValue).toBe(false);
       expect(excludeModsField?.defaultValue).toBe(true);
       expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
+      expect(fields.find((f: any) => f.name === "filter_only")?.defaultValue).toBe(false);
       expect(removalReasonField?.defaultValue).toEqual(["none"]);
       expect(removalReasonField?.options).toEqual([
         { label: "None", value: "none" },
@@ -145,6 +153,7 @@ describe("form", () => {
         top_level_only: true,
         exclude_mods: false,
         exclude_author: false,
+        filter_only: true,
         removal_reason: "reason_1",
         sticky_comment_text: "Custom sticky comment",
         expiration: 3600,
@@ -165,6 +174,7 @@ describe("form", () => {
       expect(fields.find((f: any) => f.name === "top_level_only")?.defaultValue).toBe(true);
       expect(fields.find((f: any) => f.name === "exclude_mods")?.defaultValue).toBe(false);
       expect(fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(false);
+      expect(fields.find((f: any) => f.name === "filter_only")?.defaultValue).toBe(true);
       expect(fields.find((f: any) => f.name === "removal_reason")?.defaultValue).toEqual(["reason_1"]);
       expect(fields.find((f: any) => f.name === "sticky_comment_text")?.defaultValue).toBe("Custom sticky comment");
       expect(fields.find((f: any) => f.name === "expiration")?.defaultValue).toEqual(["3600"]);
@@ -179,12 +189,14 @@ describe("form", () => {
           top_level_only: false,
           exclude_mods: true,
           exclude_author: true,
+          filter_only: false,
           removal_reason: "none",
           sticky_comment_text: "",
           expiration: 0,
         },
       });
       expect(config.fields.find((f: any) => f.name === "exclude_author")?.defaultValue).toBe(true);
+      expect(config.fields.find((f: any) => f.name === "filter_only")?.defaultValue).toBe(false);
     });
 
     it("handles omitted or undefined flairs and removal_reasons gracefully", () => {
@@ -366,6 +378,11 @@ describe("form", () => {
             bodyMarkdown: expect.stringContaining("* **User Flairs:** `VIP`"),
           })
         );
+        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bodyMarkdown: expect.stringContaining("* **Filter to ModQueue:** false"),
+          })
+        );
 
         const savedSettings: PostSettings = JSON.parse(redisStore["t3_post123"]);
         expect(savedSettings.is_enabled).toBe(true);
@@ -515,6 +532,7 @@ describe("form", () => {
         top_level_only: false,
         exclude_mods: true,
         exclude_author: true,
+        filter_only: false,
         expiration: 3600,
         removal_reason: "none",
         sticky_comment_text: "Original sticky text %%flair%%",
@@ -549,6 +567,7 @@ describe("form", () => {
         expect(mockContext.reddit.modMail.reply).toHaveBeenCalledWith(
           expect.objectContaining({
             conversationId: "conv_existing_123",
+            body: expect.stringContaining("* **Filter to ModQueue:** false"),
             isInternal: true,
           })
         );
@@ -685,6 +704,7 @@ describe("form", () => {
         });
         const saved = JSON.parse(redisStore["t3_post123"]);
         expect(saved.exclude_author).toBe(true);
+        expect(saved.filter_only).toBe(false);
         expect(saved.op_author_name).toBe("author_user");
       });
 

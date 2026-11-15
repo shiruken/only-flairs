@@ -14,6 +14,8 @@ export type PostSettings = {
   exclude_mods: boolean;
   /** Exclude post author from comment restrictions */
   exclude_author?: boolean;
+  /** Filter comments to ModQueue instead of removing them */
+  filter_only?: boolean;
   /** Username of the post author */
   op_author_name?: string;
   /** Duration (in seconds) until flaired user only mode is disabled */
