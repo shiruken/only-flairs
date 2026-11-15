@@ -75,41 +75,17 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 * Manually disabling flaired user only mode will result in the sticky comment being deleted
 * Sticky comments are automatically deleted when the comment restriction expires
 
-## Changelog
+## Recent Updates (v0.6)
 
-*[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
+* Add option to filter comments to the ModQueue instead of removing them *(New in v0.6.10)*
+* Remember the last selected removal reason across the subreddit when configuring new posts
+* Add option to exclude post author from comment restrictions
+* Modmail notifications are now routed to the Notifications tab rather than the Inbox
+* Support multiple `%%flair%%` placeholders in sticky comments
+* Improved handling and notifications for expiring comment restrictions
+* Reliability improvements for flair detection and comment removal
 
-* v0.6
-  * Add option to filter comments to the ModQueue instead of removing them
-  * Remember the last selected removal reason across the subreddit when configuring new posts
-  * Add option to exclude post author from comment restrictions
-  * Modmail notifications are now routed to the Notifications tab rather than the Inbox
-  * Support multiple `%%flair%%` placeholders in sticky comments
-  * Improved handling and notifications for expiring comment restrictions
-  * Reliability improvements for flair detection and comment removal
-* v0.5
-  * Add placeholder text to include list of flairs in sticky comment
-  * Add option to disable automatic expiration
-* v0.4
-  * Modmail notifications are now routed into the Inbox rather than Mod Discussions
-  * Improved checking for presence of user flair
-  * Add option to specify user flairs that are allowed to comment
-* v0.3
-  * Resolved issue with blank options appearing in form for Removal Reason and Expiration fields
-  * Simplified form by eliminating pass-through variable
-  * Default to removing comments if user flair information is missing
-  * Add option to exclude moderators
-* v0.2
-  * Automatically post sticky comment with user-defined text
-  * Specify default sticky comment text in installation settings
-  * Allow specifying removal reason
-  * Send Modmail on configuration change
-  * Improve messaging when configuration is unchanged or form is submitted without enabling
-* v0.1
-  * Automatically expire restrictions after user-specified duration
-  * Add option to ignore comment replies
-  * If already enabled, use the current settings when displaying the form
-  * Initial Release
+*[View full release history on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 ## Links
 
