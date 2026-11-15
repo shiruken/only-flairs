@@ -10,18 +10,19 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 * Minimal setup requiring **zero** knowledge about AutoModerator or coding
 * Moderator enabled on a **post-by-post** basis
-* Automatically removes incoming comments from unflaired users
+* Automatically removes or filters incoming comments from unflaired users
+  * Optionally filter comments to the ModQueue instead of removing them
   * Easily specify which user flairs are allowed to comment
   * Optionally allow replies to top-level comments
   * Optionally exclude subreddit moderators and post authors
-  * Apply subreddit removal reason to actions
+  * Apply subreddit removal reason to removals
 * Customizable sticky comment to inform users about restrictions
 * Automatically disabled after user-selected duration
 * Notifications via Modmail
 
 ## Installation Settings
 
-![Screenshot of Installation Settings](https://github.com/user-attachments/assets/58f9bf21-8169-4ed0-9aef-69fd714b4e34)
+![Screenshot of Installation Settings](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/settings.png)
 
 * **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Can be modified when configuring the settings on individual posts.
 
@@ -29,14 +30,15 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 
 This action appears under the moderator menu on posts in the subreddit. It allows for enabling and configuring flair-based commenting restrictions on the post.
 
-![Screenshot of 'Restrict to Flaired Users' Menu Action](https://github.com/user-attachments/assets/2fc1d886-af64-4b4b-b413-c4a63e86c725) ![Screenshot of 'Restrict to Flaired Users' Form](https://github.com/user-attachments/assets/d9f262fd-1a44-466a-b8de-2946ab729cdf)
+![Screenshot of 'Restrict to Flaired Users' Menu Action](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/menu.png) ![Screenshot of 'Restrict to Flaired Users' Form](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/form.png)
 
 * **Enable:** Enable or disable flaired user only mode (make sure to actually enable it!)
 * **User Flairs:** Only allow comments from users with the selected flair(s). The 'Any' option allows any user with flair to comment.
 * **Only Restrict Top-Level Comments:** Allow comment replies from any user regardless of flair
 * **Exclude Moderators:** Exclude subreddit moderators from comment restrictions
 * **Exclude Author:** Exclude the post author from comment restrictions
-* **Removal Reason:** Subreddit removal reason to use on actioned comments. Defaults to the last selected removal reason across the subreddit. Select 'None' to specify no removal reason.
+* **Filter to ModQueue:** Filter comments for moderator review instead of removing them
+* **Removal Reason:** Subreddit removal reason to use on removed comments. Defaults to the last selected removal reason across the subreddit. Select 'None' to specify no removal reason.
 * **Sticky Comment:** Text for the sticky comment on the post. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Defaults to the value defined in the installation settings.
 * **Expiration:** Automatically disable comment restrictions after selected duration
 
@@ -44,21 +46,30 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 A notification is routed to Modmail's **Notifications** tab when flaired user only mode is enabled on a post. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
 
-![Screenshot of Modmail Conversation](https://github.com/user-attachments/assets/8f21499f-0efc-499a-ba38-dc0ba0abffcf)
+![Screenshot of Modmail Conversation](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/modmail.png)
 
 ## Moderation Actions
 
 ### Comment Removal
 
-![Screenshot of Removed Comment](https://github.com/user-attachments/assets/f33d2323-11ba-41f7-a8c6-fc881d142f09)
+![Screenshot of Removed Comment](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/removed-comment.png)
 
-![Screenshot of Mod Log Entry](https://github.com/user-attachments/assets/d36adb08-9fde-4be3-9cd0-672a045c7c88)
+![Screenshot of Mod Log Entry](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/mod-log.png)
 
 * No removal reason will be applied if the 'Removal Reason' setting is set to 'None'
 
+### Comment Filtering
+
+![Screenshot of Filtered Comment](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/filtered-comment.png)
+
+![Screenshot of ModQueue Entry](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/mod-queue.png)
+
+* When 'Filter to ModQueue' is enabled, comments from unflaired users are held in the subreddit's ModQueue for moderator review instead of being removed
+* Filtered comments are hidden from the post while in the queue and include the mod note: "Commenting restricted to flaired users"
+
 ### Sticky Comment
 
-![Screenshot of Sticky Comment](https://github.com/user-attachments/assets/041f9548-a6e7-4f85-b680-f77ba731ec9c)
+![Screenshot of Sticky Comment](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/sticky-comment.png)
 
 * Sticky comments will be edited or deleted as the configuration on an individual post is modified
 * Manually disabling flaired user only mode will result in the sticky comment being deleted
@@ -69,6 +80,7 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 *[View Releases on GitHub](https://github.com/shiruken/only-flairs/releases)*
 
 * v0.6
+  * Add option to filter comments to the ModQueue instead of removing them
   * Remember the last selected removal reason across the subreddit when configuring new posts
   * Add option to exclude post author from comment restrictions
   * Modmail notifications are now routed to the Notifications tab rather than the Inbox
