@@ -288,6 +288,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
               }
             } else {
               const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+              await comment.undistinguish();
               await comment.delete();
               settings.sticky_comment_id = undefined;
             }
@@ -398,6 +399,7 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
       if (settings_old.sticky_comment_id) {
         try {
           const comment = await context.reddit.getCommentById(settings_old.sticky_comment_id);
+          await comment.undistinguish();
           await comment.delete();
         } catch (e) {
           logger.form.error(`Error deleting sticky comment ${settings_old.sticky_comment_id}`, e);

@@ -89,6 +89,7 @@ describe("scheduler", () => {
 
       const mockComment = {
         id: "t1_sticky999",
+        undistinguish: vi.fn().mockResolvedValue(undefined),
         delete: vi.fn().mockResolvedValue(undefined),
       };
 
@@ -131,6 +132,7 @@ describe("scheduler", () => {
 
       await onExpireRestrictions(event, mockContext);
 
+      expect(mockComment.undistinguish).not.toHaveBeenCalled();
       expect(mockComment.delete).not.toHaveBeenCalled();
       expect(mockContext.redis.del).not.toHaveBeenCalled();
     });
@@ -147,6 +149,7 @@ describe("scheduler", () => {
 
       await onExpireRestrictions(event, mockContext);
 
+      expect(mockComment.undistinguish).not.toHaveBeenCalled();
       expect(mockComment.delete).not.toHaveBeenCalled();
       expect(mockContext.redis.del).not.toHaveBeenCalled();
     });
@@ -160,6 +163,7 @@ describe("scheduler", () => {
 
       await onExpireRestrictions(event, mockContext);
 
+      expect(mockComment.undistinguish).toHaveBeenCalledTimes(1);
       expect(mockComment.delete).toHaveBeenCalledTimes(1);
       expect(mockContext.reddit.getPostById).toHaveBeenCalledWith("t3_post123");
       expect(reply).toHaveBeenCalledWith(
@@ -185,6 +189,7 @@ describe("scheduler", () => {
 
       await onExpireRestrictions(event, mockContext);
 
+      expect(mockComment.undistinguish).not.toHaveBeenCalled();
       expect(mockComment.delete).not.toHaveBeenCalled();
       expect(reply).toHaveBeenCalled();
       expect(mockContext.redis.del).toHaveBeenCalledWith("t3_post123");

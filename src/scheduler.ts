@@ -74,6 +74,7 @@ export async function onExpireRestrictions(
   if (settings.sticky_comment_id) {
     try {
       const comment = await context.reddit.getCommentById(settings.sticky_comment_id);
+      await comment.undistinguish();
       await comment.delete();
     } catch (e) {
       logger.scheduler.error(`Error deleting sticky comment ${settings.sticky_comment_id} on ${postId}`, e);

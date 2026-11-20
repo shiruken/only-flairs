@@ -265,6 +265,7 @@ describe("form", () => {
       const mockComment = {
         id: "t1_sticky999",
         distinguish: vi.fn().mockResolvedValue(undefined),
+        undistinguish: vi.fn().mockResolvedValue(undefined),
         edit: vi.fn().mockResolvedValue(undefined),
         delete: vi.fn().mockResolvedValue(undefined),
       };
@@ -594,6 +595,7 @@ describe("form", () => {
 
         await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
+        expect(mockComment.undistinguish).toHaveBeenCalled();
         expect(mockComment.delete).toHaveBeenCalled();
         const saved = JSON.parse(redisStore["t3_post123"]);
         expect(saved.sticky_comment_id).toBeUndefined();
@@ -958,6 +960,7 @@ describe("form", () => {
         await processForm({ values: updatedValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
         expect(mockComment.edit).not.toHaveBeenCalled();
+        expect(mockComment.undistinguish).not.toHaveBeenCalled();
         expect(mockComment.delete).not.toHaveBeenCalled();
         expect(mockContext.reddit.submitComment).not.toHaveBeenCalled();
       });
@@ -996,6 +999,7 @@ describe("form", () => {
         await processForm({ values: disableValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
         expect(mockContext.scheduler.cancelJob).toHaveBeenCalledWith("job_to_cancel_123");
+        expect(mockComment.undistinguish).toHaveBeenCalled();
         expect(mockComment.delete).toHaveBeenCalled();
         expect(mockContext.reddit.modMail.reply).toHaveBeenCalledWith(
           expect.objectContaining({
