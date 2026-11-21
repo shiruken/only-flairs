@@ -1,6 +1,5 @@
 import { Context, JobContext, ScheduledJobEvent } from "@devvit/public-api";
 import { clearPostSettings, getPostSettings } from "./storage.js";
-import { notifyMods } from "./form.js";
 import { logger } from "./logger.js";
 
 /** Job name registered with Devvit scheduler */
@@ -53,7 +52,7 @@ export async function cancelExpiration(
 /**
  * Scheduled job handler executed when post restrictions expire
  *
- * Removes sticky comment, sends ModMail notification, and clears Redis settings.
+ * Removes sticky comment and clears Redis settings.
  * @param event Scheduled job event with post ID payload
  * @param context JobContext object
  */
@@ -79,21 +78,6 @@ export async function onExpireRestrictions(
     } catch (e) {
       logger.scheduler.error(`Error deleting sticky comment ${settings.sticky_comment_id} on ${postId}`, e);
     }
-  }
-
-  // Send ModMail notification to the existing conversation if post is not deleted or removed
-  try {
-    const post = await context.reddit.getPostById(postId);
-    if (!post.removed && !post.spam && post.authorName !== "[deleted]") {
-      await notifyMods(context, post, settings.conversation_id, {
-        subject: "Flaired User Only Mode Expired",
-        body: `Commenting restrictions on [${post.title}](${post.permalink}) have expired. Commenting is now permitted from all users.`,
-      });
-    } else {
-      logger.scheduler.info(`Skipping expiration notification for removed or deleted post ${postId}`);
-    }
-  } catch (e) {
-    logger.scheduler.error(`Error notifying mods of expiration on ${postId}`, e);
   }
 
   // Clear Redis settings

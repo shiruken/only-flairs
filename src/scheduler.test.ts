@@ -154,8 +154,8 @@ describe("scheduler", () => {
       expect(mockContext.redis.del).not.toHaveBeenCalled();
     });
 
-    it("deletes sticky comment, sends ModMail notification and deletes post from Redis", async () => {
-      const { mockContext, mockComment, reply, redisStore } = setupJobContext(mockPostSettings);
+    it("deletes sticky comment and deletes post from Redis", async () => {
+      const { mockContext, mockComment, redisStore } = setupJobContext(mockPostSettings);
       const event = {
         name: EXPIRE_JOB_NAME,
         data: { postId: "t3_post123" },
@@ -165,14 +165,7 @@ describe("scheduler", () => {
 
       expect(mockComment.undistinguish).toHaveBeenCalledTimes(1);
       expect(mockComment.delete).toHaveBeenCalledTimes(1);
-      expect(mockContext.reddit.getPostById).toHaveBeenCalledWith("t3_post123");
-      expect(reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          conversationId: "conv_modmail_123",
-          body: expect.stringContaining("have expired"),
-          isInternal: true,
-        })
-      );
+      expect(mockContext.reddit.getPostById).not.toHaveBeenCalled();
       expect(redisStore["t3_post123"]).toBeUndefined();
     });
 
@@ -181,7 +174,7 @@ describe("scheduler", () => {
         ...mockPostSettings,
         sticky_comment_id: undefined,
       };
-      const { mockContext, mockComment, reply } = setupJobContext(settingsWithoutSticky);
+      const { mockContext, mockComment } = setupJobContext(settingsWithoutSticky);
       const event = {
         name: EXPIRE_JOB_NAME,
         data: { postId: "t3_post123" },
@@ -191,26 +184,12 @@ describe("scheduler", () => {
 
       expect(mockComment.undistinguish).not.toHaveBeenCalled();
       expect(mockComment.delete).not.toHaveBeenCalled();
-      expect(reply).toHaveBeenCalled();
       expect(mockContext.redis.del).toHaveBeenCalledWith("t3_post123");
     });
 
     it("continues and clears Redis even if sticky comment deletion fails", async () => {
       const { mockContext, mockComment, redisStore } = setupJobContext(mockPostSettings);
       mockComment.delete.mockRejectedValue(new Error("Comment already deleted"));
-
-      const event = {
-        name: EXPIRE_JOB_NAME,
-        data: { postId: "t3_post123" },
-      } as ScheduledJobEvent<{ postId: string }>;
-
-      await expect(onExpireRestrictions(event, mockContext)).resolves.toBeUndefined();
-      expect(redisStore["t3_post123"]).toBeUndefined();
-    });
-
-    it("continues and clears Redis even if post lookup / ModMail notification fails", async () => {
-      const { mockContext, redisStore } = setupJobContext(mockPostSettings);
-      (mockContext.reddit.getPostById as any).mockRejectedValue(new Error("Post was deleted"));
 
       const event = {
         name: EXPIRE_JOB_NAME,
@@ -231,51 +210,6 @@ describe("scheduler", () => {
       } as ScheduledJobEvent<{ postId: string }>;
 
       await expect(onExpireRestrictions(event, mockContext)).resolves.toBeUndefined();
-    });
-
-    it("skips ModMail notification if post has been removed by a moderator", async () => {
-      const { mockContext, mockPost, reply, redisStore } = setupJobContext(mockPostSettings);
-      (mockPost as any).removed = true;
-
-      const event = {
-        name: EXPIRE_JOB_NAME,
-        data: { postId: "t3_post123" },
-      } as ScheduledJobEvent<{ postId: string }>;
-
-      await onExpireRestrictions(event, mockContext);
-
-      expect(reply).not.toHaveBeenCalled();
-      expect(redisStore["t3_post123"]).toBeUndefined();
-    });
-
-    it("skips ModMail notification if post was marked as spam", async () => {
-      const { mockContext, mockPost, reply, redisStore } = setupJobContext(mockPostSettings);
-      (mockPost as any).spam = true;
-
-      const event = {
-        name: EXPIRE_JOB_NAME,
-        data: { postId: "t3_post123" },
-      } as ScheduledJobEvent<{ postId: string }>;
-
-      await onExpireRestrictions(event, mockContext);
-
-      expect(reply).not.toHaveBeenCalled();
-      expect(redisStore["t3_post123"]).toBeUndefined();
-    });
-
-    it("skips ModMail notification if post author was deleted", async () => {
-      const { mockContext, mockPost, reply, redisStore } = setupJobContext(mockPostSettings);
-      (mockPost as any).authorName = "[deleted]";
-
-      const event = {
-        name: EXPIRE_JOB_NAME,
-        data: { postId: "t3_post123" },
-      } as ScheduledJobEvent<{ postId: string }>;
-
-      await onExpireRestrictions(event, mockContext);
-
-      expect(reply).not.toHaveBeenCalled();
-      expect(redisStore["t3_post123"]).toBeUndefined();
     });
   });
 });
