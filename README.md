@@ -25,7 +25,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 ![Screenshot of Installation Settings](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/settings.png)
 
 * **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Can be modified when configuring the settings on individual posts.
-* **Send to Notifications Folder:** Route Modmails into the Notifications folder instead of the main inbox.
+* **Send to Notifications Folder:** Route Modmails into the Notifications folder.
 
 ## Menu Action: Restrict to Flaired Users
 
