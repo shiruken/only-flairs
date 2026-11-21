@@ -432,8 +432,9 @@ export async function processForm(event: FormOnSubmitEvent<JSONObject>, context:
  * Notify moderators via ModMail without letting failures block the caller
  *
  * Replies to an existing conversation when possible using an internal mod note.
- * If replying fails, or if starting a new notification, uses createModNotification
- * so the conversation appears in the Modmail Notifications tab.
+ * If replying fails, or if starting a new conversation, uses createModInboxConversation.
+ * When the modmailNotification setting is enabled, prepends "[Notification] " to the subject
+ * so Reddit routes the conversation to the Modmail Notifications folder.
  * @param context A Context object
  * @param post The restricted post
  * @param conversation_id ModMail conversation ID to reply to, if any
@@ -460,9 +461,11 @@ export async function notifyMods(
   }
 
   try {
-    return await context.reddit.modMail.createModNotification({
+    const modmailNotification = await context.settings?.get<boolean>("modmailNotification");
+    const subjectPrefix = modmailNotification ? "[Notification] " : "";
+    return await context.reddit.modMail.createModInboxConversation({
       subredditId: post.subredditId,
-      subject: message.subject,
+      subject: `${subjectPrefix}${message.subject}`,
       bodyMarkdown: message.body,
     });
   } catch (e) {

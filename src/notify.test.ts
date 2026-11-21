@@ -8,13 +8,13 @@ describe("notifyMods", () => {
     subredditId: "t5_sub123",
   } as unknown as Post;
 
-  it("creates a new mod notification when conversation_id is undefined", async () => {
-    const createModNotification = vi.fn().mockResolvedValue("conv_new_123");
+  it("creates a new mod conversation when conversation_id is undefined", async () => {
+    const createModInboxConversation = vi.fn().mockResolvedValue("conv_new_123");
     const reply = vi.fn();
     const mockContext = {
       reddit: {
         modMail: {
-          createModNotification,
+          createModInboxConversation,
           reply,
         },
       },
@@ -25,7 +25,65 @@ describe("notifyMods", () => {
       body: "Test Body",
     });
 
-    expect(createModNotification).toHaveBeenCalledWith({
+    expect(createModInboxConversation).toHaveBeenCalledWith({
+      subredditId: "t5_sub123",
+      subject: "Test Subject",
+      bodyMarkdown: "Test Body",
+    });
+    expect(reply).not.toHaveBeenCalled();
+    expect(result).toBe("conv_new_123");
+  });
+
+  it("prepends [Notification] when modmailNotification setting is enabled", async () => {
+    const createModInboxConversation = vi.fn().mockResolvedValue("conv_new_123");
+    const reply = vi.fn();
+    const mockContext = {
+      reddit: {
+        modMail: {
+          createModInboxConversation,
+          reply,
+        },
+      },
+      settings: {
+        get: vi.fn().mockResolvedValue(true),
+      },
+    } as unknown as Context;
+
+    const result = await notifyMods(mockContext, mockPost, undefined, {
+      subject: "Test Subject",
+      body: "Test Body",
+    });
+
+    expect(createModInboxConversation).toHaveBeenCalledWith({
+      subredditId: "t5_sub123",
+      subject: "[Notification] Test Subject",
+      bodyMarkdown: "Test Body",
+    });
+    expect(reply).not.toHaveBeenCalled();
+    expect(result).toBe("conv_new_123");
+  });
+
+  it("does not prepend [Notification] when modmailNotification setting is disabled", async () => {
+    const createModInboxConversation = vi.fn().mockResolvedValue("conv_new_123");
+    const reply = vi.fn();
+    const mockContext = {
+      reddit: {
+        modMail: {
+          createModInboxConversation,
+          reply,
+        },
+      },
+      settings: {
+        get: vi.fn().mockResolvedValue(false),
+      },
+    } as unknown as Context;
+
+    const result = await notifyMods(mockContext, mockPost, undefined, {
+      subject: "Test Subject",
+      body: "Test Body",
+    });
+
+    expect(createModInboxConversation).toHaveBeenCalledWith({
       subredditId: "t5_sub123",
       subject: "Test Subject",
       bodyMarkdown: "Test Body",
@@ -35,12 +93,12 @@ describe("notifyMods", () => {
   });
 
   it("replies with isInternal: true when conversation_id is provided", async () => {
-    const createModNotification = vi.fn();
+    const createModInboxConversation = vi.fn();
     const reply = vi.fn().mockResolvedValue({ conversation: {}, user: {} });
     const mockContext = {
       reddit: {
         modMail: {
-          createModNotification,
+          createModInboxConversation,
           reply,
         },
       },
@@ -56,17 +114,17 @@ describe("notifyMods", () => {
       body: "Edit Body",
       isInternal: true,
     });
-    expect(createModNotification).not.toHaveBeenCalled();
+    expect(createModInboxConversation).not.toHaveBeenCalled();
     expect(result).toBe("conv_existing_456");
   });
 
-  it("falls back to createModNotification if reply fails", async () => {
-    const createModNotification = vi.fn().mockResolvedValue("conv_fallback_789");
+  it("falls back to createModInboxConversation if reply fails", async () => {
+    const createModInboxConversation = vi.fn().mockResolvedValue("conv_fallback_789");
     const reply = vi.fn().mockRejectedValue(new Error("Conversation is read-only"));
     const mockContext = {
       reddit: {
         modMail: {
-          createModNotification,
+          createModInboxConversation,
           reply,
         },
       },
@@ -82,7 +140,7 @@ describe("notifyMods", () => {
       body: "Fallback Body",
       isInternal: true,
     });
-    expect(createModNotification).toHaveBeenCalledWith({
+    expect(createModInboxConversation).toHaveBeenCalledWith({
       subredditId: "t5_sub123",
       subject: "Fallback Subject",
       bodyMarkdown: "Fallback Body",
@@ -90,13 +148,13 @@ describe("notifyMods", () => {
     expect(result).toBe("conv_fallback_789");
   });
 
-  it("does not throw if both reply and createModNotification fail", async () => {
-    const createModNotification = vi.fn().mockRejectedValue(new Error("Network failure"));
+  it("does not throw if both reply and createModInboxConversation fail", async () => {
+    const createModInboxConversation = vi.fn().mockRejectedValue(new Error("Network failure"));
     const reply = vi.fn().mockRejectedValue(new Error("Reply failure"));
     const mockContext = {
       reddit: {
         modMail: {
-          createModNotification,
+          createModInboxConversation,
           reply,
         },
       },

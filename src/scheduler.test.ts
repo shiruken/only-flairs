@@ -101,7 +101,7 @@ describe("scheduler", () => {
       };
 
       const reply = vi.fn().mockResolvedValue({ conversation: {}, user: {} });
-      const createModNotification = vi.fn().mockResolvedValue("conv_new_123");
+      const createModInboxConversation = vi.fn().mockResolvedValue("conv_new_123");
 
       const mockContext = {
         redis: {
@@ -115,12 +115,12 @@ describe("scheduler", () => {
           getPostById: vi.fn().mockResolvedValue(mockPost),
           modMail: {
             reply,
-            createModNotification,
+            createModInboxConversation,
           },
         },
       } as unknown as JobContext;
 
-      return { mockContext, mockComment, mockPost, reply, createModNotification, redisStore };
+      return { mockContext, mockComment, mockPost, reply, createModInboxConversation, redisStore };
     }
 
     it("does nothing if post settings are not found in Redis", async () => {

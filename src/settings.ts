@@ -9,4 +9,12 @@ export const settings: SettingsFormField[] = [
     helpText: "Default text for sticky comments on restricted posts. Use the placeholder %%flair%% to include a list of the selected flairs. Leave empty to disable. Can be modified when configuring individual posts.",
     defaultValue: "",
   },
+  {
+    scope: "installation",
+    type: "boolean",
+    name: "modmailNotification",
+    label: "Send to Notifications Folder",
+    helpText: "Route Modmail notifications into the Modmail Notifications folder",
+    defaultValue: false,
+  },
 ];

@@ -313,7 +313,7 @@ describe("form", () => {
           submitComment: vi.fn().mockResolvedValue(mockComment),
           getCommentById: vi.fn().mockResolvedValue(mockComment),
           modMail: {
-            createModNotification: vi.fn().mockResolvedValue("conv_modmail_123"),
+            createModInboxConversation: vi.fn().mockResolvedValue("conv_modmail_123"),
             reply: vi.fn().mockResolvedValue({ conversation: {}, user: {} }),
           },
         },
@@ -372,14 +372,14 @@ describe("form", () => {
         });
         expect(mockComment.distinguish).toHaveBeenCalledWith(true);
 
-        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+        expect(mockContext.reddit.modMail.createModInboxConversation).toHaveBeenCalledWith(
           expect.objectContaining({
             subredditId: "t5_testsub",
             subject: "Flaired User Only Mode Enabled",
             bodyMarkdown: expect.stringContaining("* **User Flairs:** `VIP`"),
           })
         );
-        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+        expect(mockContext.reddit.modMail.createModInboxConversation).toHaveBeenCalledWith(
           expect.objectContaining({
             bodyMarkdown: expect.stringContaining("* **Filter to ModQueue:** false"),
           })
@@ -425,7 +425,7 @@ describe("form", () => {
           id: "t3_post123",
           text: "Allowed flairs: Any",
         });
-        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+        expect(mockContext.reddit.modMail.createModInboxConversation).toHaveBeenCalledWith(
           expect.objectContaining({
             bodyMarkdown: expect.stringContaining("* **User Flairs:** Any"),
           })
@@ -449,7 +449,7 @@ describe("form", () => {
 
         await processForm({ values: formValues } as FormOnSubmitEvent<JSONObject>, mockContext);
 
-        expect(mockContext.reddit.modMail.createModNotification).toHaveBeenCalledWith(
+        expect(mockContext.reddit.modMail.createModInboxConversation).toHaveBeenCalledWith(
           expect.objectContaining({
             bodyMarkdown: expect.stringContaining("* **Removal Reason:** None"),
           })
