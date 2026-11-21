@@ -25,6 +25,7 @@ Easily restrict commenting on individual posts to only users [flaired](https://s
 ![Screenshot of Installation Settings](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/settings.png)
 
 * **Default Sticky Comment:** Sets the default text for sticky comments on restricted posts. Supports Markdown. Use the placeholder `%%flair%%` to include a list of the selected flairs. Leave empty to disable. Can be modified when configuring the settings on individual posts.
+* **Send to Notifications Folder:** Route Modmails into the Notifications folder instead of the main inbox.
 
 ## Menu Action: Restrict to Flaired Users
 
@@ -44,7 +45,7 @@ This action appears under the moderator menu on posts in the subreddit. It allow
 
 ## Notifications: Modmail
 
-A notification is routed to Modmail's **Notifications** tab when flaired user only mode is enabled on a post. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
+A notification is sent to Modmail when flaired user only mode is enabled on a post. Optionally, notifications can be routed to Modmail's **Notifications** folder via the app settings. Any subsequent changes to the configuration or disabling of the mode are reported as threaded updates to the original notification.
 
 ![Screenshot of Modmail Conversation](https://raw.githubusercontent.com/shiruken/only-flairs/main/assets/modmail.png)
 
@@ -77,10 +78,11 @@ A notification is routed to Modmail's **Notifications** tab when flaired user on
 
 ## Recent Updates (v0.6)
 
-* Add option to filter comments to the ModQueue instead of removing them *(New in v0.6.10)*
+* Add option to route Modmails to the Notifications folder *(New in v0.6.12)*
+* Stop sending Modmail notifications when comment restrictions expire *(New in v0.6.12)*
+* Add option to filter comments to the ModQueue instead of removing them
 * Remember the last selected removal reason across the subreddit when configuring new posts
 * Add option to exclude post author from comment restrictions
-* Modmail notifications are now routed to the Notifications tab rather than the Inbox
 * Support multiple `%%flair%%` placeholders in sticky comments
 * Improved handling and notifications for expiring comment restrictions
 * Reliability improvements for flair detection and comment removal
